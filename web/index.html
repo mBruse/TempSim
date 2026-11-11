@@ -1,0 +1,1018 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Temperatur1D</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;600&display=swap">
+<style>
+/* Layout: Kopfzeile, links Einstellungen (Messprotokoll), rechts Systemschema + Diagramm-Reiter.
+   Ruhige, kühle Neutraltöne; Farbe gehört den Temperaturen. */
+:root {
+  --bg: #f3f5f8;
+  --surface: #ffffff;
+  --surface-2: #eef1f5;
+  --ink: #17212b;
+  --ink-2: #44505d;
+  --muted: #6b7682;
+  --line: #dde2e9;
+  --grid: #e8ecf1;
+  --accent: #1d5fae;
+  --accent-ink: #ffffff;
+  --ok: #157f3b;
+  --warn: #a6570a;
+  --err: #c21f1f;
+  --ok-bg: #e5f4ea;
+  --warn-bg: #fbefdf;
+  --err-bg: #fbe6e6;
+  --iso-line: #2b2f33;
+  --font-display: "Space Grotesk", "Segoe UI", system-ui, sans-serif;
+  --font-body: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-data: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  --radius: 10px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e1319; --surface: #151c24; --surface-2: #1c252f; --ink: #e5eaf0; --ink-2: #b9c3ce;
+    --muted: #8b97a4; --line: #2a3440; --grid: #222b35; --accent: #6ea6ec; --accent-ink: #0e1319;
+    --ok: #4cc27a; --warn: #f0a24a; --err: #f07070; --ok-bg: #16301f; --warn-bg: #352512; --err-bg: #3a1a1a;
+    --iso-line: #1d2126;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e1319; --surface: #151c24; --surface-2: #1c252f; --ink: #e5eaf0; --ink-2: #b9c3ce;
+  --muted: #8b97a4; --line: #2a3440; --grid: #222b35; --accent: #6ea6ec; --accent-ink: #0e1319;
+  --ok: #4cc27a; --warn: #f0a24a; --err: #f07070; --ok-bg: #16301f; --warn-bg: #352512; --err-bg: #3a1a1a;
+  --iso-line: #1d2126;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { margin: 0; }
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font: 14px/1.5 var(--font-body);
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 16px 24px;
+}
+h1, h2, h3 { font-family: var(--font-display); font-weight: 600; text-wrap: balance; margin: 0; }
+button, input, select { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.app { max-width: 1440px; margin: 0 auto; display: grid; gap: 16px; }
+
+/* Kopfzeile */
+.top { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px 24px; }
+.brand h1 { font-size: 26px; letter-spacing: -0.01em; }
+.brand p { margin: 2px 0 0; color: var(--muted); max-width: 62ch; }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.btn {
+  border: 1px solid var(--line); background: var(--surface); color: var(--ink);
+  border-radius: 8px; padding: 8px 16px; font-weight: 500; cursor: pointer;
+}
+.btn:hover:not(:disabled) { border-color: var(--accent); }
+.btn:disabled { opacity: .45; cursor: not-allowed; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.btn.small { padding: 5px 12px; font-size: 13px; }
+
+.layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; }
+@media (min-width: 980px) { .layout { grid-template-columns: 312px minmax(0, 1fr); align-items: start; } }
+
+/* Einstellungen */
+.panel {
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+  padding: 16px; display: grid; gap: 16px;
+}
+fieldset { border: 0; margin: 0; padding: 0; display: grid; gap: 8px; min-width: 0; }
+legend {
+  padding: 0; margin-bottom: 4px; font-size: 11px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: .08em; color: var(--muted);
+}
+.row { display: grid; grid-template-columns: minmax(0, 1fr) 96px; align-items: center; gap: 8px; }
+.row label { color: var(--ink-2); }
+.row .unit { color: var(--muted); }
+input[type="text"], select {
+  width: 100%; min-width: 0; background: var(--surface-2); border: 1px solid var(--line);
+  border-radius: 6px; padding: 6px 8px;
+}
+input[type="text"] { text-align: right; font-family: var(--font-data); font-variant-numeric: tabular-nums; }
+input.invalid { border-color: var(--err); color: var(--err); }
+.matinfo { font-family: var(--font-data); font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.check { display: flex; gap: 8px; align-items: center; color: var(--ink-2); }
+.check input { width: 16px; height: 16px; accent-color: var(--accent); }
+
+.stability { border-radius: 8px; padding: 10px 12px; display: grid; gap: 2px; }
+.stability .state { font-weight: 600; display: flex; align-items: center; gap: 6px; }
+.stability .detail { font-family: var(--font-data); font-size: 12px; font-variant-numeric: tabular-nums; }
+.stability.ok { background: var(--ok-bg); color: var(--ok); }
+.stability.warn { background: var(--warn-bg); color: var(--warn); }
+.stability.err { background: var(--err-bg); color: var(--err); }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; flex: none; }
+
+/* Hauptbereich */
+main { display: grid; gap: 12px; min-width: 0; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); min-width: 0; }
+.system { padding: 12px 16px 8px; }
+.system-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 16px; }
+.system-head h2 { font-size: 15px; }
+.system-head span { color: var(--muted); font-size: 12px; }
+#cvSystem { display: block; width: 100%; height: 108px; }
+
+.banner { border-radius: 8px; padding: 10px 14px; background: var(--err-bg); color: var(--err); font-weight: 500; }
+
+.tabs { display: flex; gap: 4px; overflow-x: auto; border-bottom: 1px solid var(--line); }
+.tab {
+  border: 0; background: none; padding: 8px 14px; cursor: pointer; color: var(--muted);
+  border-bottom: 2px solid transparent; margin-bottom: -1px; font-weight: 500; white-space: nowrap;
+}
+.tab[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent); }
+.tab:hover { color: var(--ink); }
+
+.view { padding: 16px; display: grid; gap: 12px; }
+.view-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 16px; }
+.view-head h2 { font-size: 16px; }
+.view-head p { margin: 0; color: var(--muted); font-size: 13px; max-width: 70ch; }
+.chart { position: relative; min-width: 0; }
+.chart canvas { display: block; width: 100%; height: clamp(260px, 48vh, 440px); touch-action: none; }
+
+.legend { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 0; padding: 0; list-style: none; }
+.legend label { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; color: var(--ink-2); font-size: 13px; }
+.legend input { accent-color: var(--accent); }
+.key { width: 16px; height: 2px; border-radius: 1px; display: inline-block; }
+.key.thick { height: 3px; }
+.key.band { height: 10px; opacity: .25; border-radius: 2px; }
+
+.tooltip {
+  position: absolute; pointer-events: none; background: var(--surface); border: 1px solid var(--line);
+  border-radius: 8px; padding: 8px 10px; font-size: 12px; box-shadow: 0 4px 16px rgb(0 0 0 / .12);
+  min-width: 150px; z-index: 5;
+}
+.tooltip .tt-title { color: var(--muted); margin-bottom: 4px; }
+.tooltip .tt-row { display: grid; grid-template-columns: 16px auto 1fr; align-items: center; gap: 6px; }
+.tooltip .tt-row b { font-family: var(--font-data); font-weight: 500; font-variant-numeric: tabular-nums; }
+.tooltip .tt-row span:last-child { color: var(--muted); }
+
+.table-wrap { overflow: auto; max-height: 460px; border: 1px solid var(--line); border-radius: 8px; }
+table { border-collapse: collapse; font-size: 12px; font-variant-numeric: tabular-nums; width: max-content; min-width: 100%; }
+th, td { padding: 4px 10px; text-align: right; border-bottom: 1px solid var(--grid); white-space: nowrap; }
+td { font-family: var(--font-data); }
+th { position: sticky; top: 0; background: var(--surface-2); color: var(--ink-2); font-weight: 600; }
+th:first-child, td:first-child { text-align: left; }
+#csvFallback { width: 100%; height: 120px; font-family: var(--font-data); font-size: 11px; background: var(--surface-2); color: var(--ink); border: 1px solid var(--line); border-radius: 8px; }
+
+.info { max-width: 72ch; display: grid; gap: 12px; color: var(--ink-2); }
+.info h3 { font-size: 14px; color: var(--ink); margin-top: 4px; }
+.info p { margin: 0; }
+.formula { font-family: var(--font-data); background: var(--surface-2); border-radius: 6px; padding: 8px 12px; color: var(--ink); overflow-x: auto; white-space: nowrap; }
+.mattable-wrap { overflow-x: auto; }
+.mattable td:first-child { font-family: var(--font-body); }
+
+.status {
+  display: flex; flex-wrap: wrap; gap: 4px 24px; color: var(--muted); font-size: 12px;
+  font-family: var(--font-data); font-variant-numeric: tabular-nums;
+}
+.status b { color: var(--ink-2); font-weight: 500; }
+
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <div class="brand">
+      <h1>Temperatur1D</h1>
+      <p>Explizite Lösung der eindimensionalen Wärmeleitungsgleichung: wie eine tägliche Temperaturwelle in Boden, Gestein oder Baustoff eindringt.</p>
+    </div>
+    <div class="actions">
+      <button class="btn primary" id="btStart" type="button">Start</button>
+      <button class="btn" id="btWeiter" type="button" disabled>Weiter</button>
+    </div>
+  </header>
+
+  <div class="layout">
+    <aside class="panel" aria-label="Modelleinstellungen">
+      <fieldset>
+        <legend>Material</legend>
+        <select id="material" aria-label="Material"></select>
+        <div class="matinfo" id="matInfo"></div>
+        <div class="row"><label for="fTlf">Temperaturleitfähigkeit a <span class="unit">(mm²/s)</span></label><input type="text" inputmode="decimal" id="fTlf"></div>
+      </fieldset>
+      <fieldset>
+        <legend>Gitter</legend>
+        <div class="row"><label for="fNodes">Anzahl Knoten</label><input type="text" inputmode="numeric" id="fNodes"></div>
+        <div class="row"><label for="fDx">Knotenabstand dx <span class="unit">(cm)</span></label><input type="text" inputmode="decimal" id="fDx"></div>
+      </fieldset>
+      <fieldset>
+        <legend>Start- und Randbedingungen</legend>
+        <div class="row"><label for="fTinit">Starttemperatur <span class="unit">(°C)</span></label><input type="text" inputmode="decimal" id="fTinit"></div>
+        <div class="row"><label for="fAmp">Amplitude oben A <span class="unit">(K)</span></label><input type="text" inputmode="decimal" id="fAmp"></div>
+        <div class="row"><label for="fPeriod">Periode oben P <span class="unit">(h)</span></label><input type="text" inputmode="decimal" id="fPeriod"></div>
+      </fieldset>
+      <fieldset>
+        <legend>Zeit</legend>
+        <div class="row"><label for="fDt">Zeitschritt dt <span class="unit">(min)</span></label><input type="text" inputmode="decimal" id="fDt"></div>
+        <div class="row"><label for="fSteps">Schritte pro Klick</label><input type="text" inputmode="numeric" id="fSteps"></div>
+        <label class="check"><input type="checkbox" id="fAuto" checked> Stabilität sichern (Unterschritte)</label>
+      </fieldset>
+      <div class="stability" id="stability" role="status"></div>
+    </aside>
+
+    <main>
+      <section class="card system" aria-label="System">
+        <div class="system-head"><h2 id="sysTitle">System</h2><span>Quadrat = Randknoten · Füllfarbe = Temperatur (blau kalt, rot warm)</span></div>
+        <canvas id="cvSystem" role="img" aria-label="Schema der Knoten mit aktueller Temperatur"></canvas>
+      </section>
+
+      <div class="banner" id="banner" hidden></div>
+
+      <section class="card">
+        <div class="tabs" role="tablist" aria-label="Diagramme">
+          <button class="tab" role="tab" id="tab-zeitverlauf" aria-controls="zeitverlauf" type="button">Zeitverlauf</button>
+          <button class="tab" role="tab" id="tab-profil" aria-controls="profil" type="button">Tiefenprofil</button>
+          <button class="tab" role="tab" id="tab-isoplethen" aria-controls="isoplethen" type="button">Isoplethen</button>
+          <button class="tab" role="tab" id="tab-tabelle" aria-controls="tabelle" type="button">Tabelle</button>
+          <button class="tab" role="tab" id="tab-info" aria-controls="info" type="button">Info</button>
+        </div>
+
+        <div class="view" role="tabpanel" id="zeitverlauf" aria-labelledby="tab-zeitverlauf">
+          <div class="view-head"><h2>Temperaturschwingungen</h2><p>Temperatur jedes Knotens über die Zeit. Mit der Tiefe wird die Welle kleiner und kommt später an.</p></div>
+          <div class="chart"><canvas id="cvTime" role="img" aria-label="Zeitverlauf der Temperatur je Knoten"></canvas><div class="tooltip" id="ttTime" hidden></div></div>
+          <ul class="legend" id="legendTime"></ul>
+        </div>
+
+        <div class="view" role="tabpanel" id="profil" aria-labelledby="tab-profil" hidden>
+          <div class="view-head"><h2>Tiefenprofil und Schwankungsbreite</h2><p>Aktuelles Profil sowie Minimum und Maximum je Knoten seit dem Start. Die graue Linie zeigt die Einhüllende der analytischen Lösung für einen unendlich tiefen Körper.</p></div>
+          <div class="chart"><canvas id="cvProfile" role="img" aria-label="Temperatur über der Tiefe"></canvas><div class="tooltip" id="ttProfile" hidden></div></div>
+          <ul class="legend">
+            <li><label><span class="key thick" id="keyNow"></span>Aktuell</label></li>
+            <li><label><span class="key" id="keyMax"></span>Maximum</label></li>
+            <li><label><span class="key" id="keyMin"></span>Minimum</label></li>
+            <li><label><span class="key" id="keyAna"></span>Tinit ± A·exp(−z/d), analytisch</label></li>
+          </ul>
+        </div>
+
+        <div class="view" role="tabpanel" id="isoplethen" aria-labelledby="tab-isoplethen" hidden>
+          <div class="view-head"><h2>Thermoisoplethen</h2><p>Temperatur als Farbfläche über Zeit (x) und Tiefe (y, nach unten) mit Isolinien. Werte über die Farbskala oder beim Zeigen.</p></div>
+          <div class="chart"><canvas id="cvIso" role="img" aria-label="Thermoisoplethendiagramm"></canvas><div class="tooltip" id="ttIso" hidden></div></div>
+        </div>
+
+        <div class="view" role="tabpanel" id="tabelle" aria-labelledby="tab-tabelle" hidden>
+          <div class="view-head"><h2>Werte</h2><p id="tableNote"></p><button class="btn small" id="btCopy" type="button">Alle Werte als CSV kopieren</button></div>
+          <div class="table-wrap"><table id="dataTable"></table></div>
+          <textarea id="csvFallback" readonly hidden aria-label="CSV-Daten"></textarea>
+        </div>
+
+        <div class="view" role="tabpanel" id="info" aria-labelledby="tab-info" hidden>
+          <div class="info">
+            <h3>Modell</h3>
+            <p>Ein eindimensionaler Körper wird durch N Knoten im Abstand dx dargestellt. Die Wärmeleitungsgleichung</p>
+            <div class="formula">∂T/∂t = a · ∂²T/∂x²</div>
+            <p>wird mit dem expliziten Differenzenverfahren (FTCS) gelöst:</p>
+            <div class="formula">Tᵢ(t+dt) = Tᵢ(t) + r · ( Tᵢ₋₁ − 2·Tᵢ + Tᵢ₊₁ ),   r = a·dt/dx²</div>
+            <h3>Randbedingungen</h3>
+            <p>Knoten 0 (Oberfläche) folgt T = Tinit + A·cos(2π·t/P), der unterste Knoten bleibt auf Tinit. Zu Beginn haben alle inneren Knoten die Temperatur Tinit.</p>
+            <h3>Stabilität</h3>
+            <p>Das explizite Verfahren ist nur für r ≤ 0,5 stabil. Bei größeren Werten wachsen Fehler exponentiell und die Lösung explodiert. Mit „Stabilität sichern“ wird dt intern in so viele Unterschritte geteilt, dass r ≤ 0,5 gilt; ausgegeben wird weiterhin nach jedem vollen dt.</p>
+            <h3>Dämpfungstiefe</h3>
+            <p>Eine periodische Welle nimmt mit der Tiefe z wie A·exp(−z/d) ab und verspätet sich um z/d · P/(2π), mit d = √(a·P/π). Für einen Tagesgang in feuchtem Sand ist d ≈ 14 cm. Das Gitter sollte einige d tief sein, sonst erzwingt der feste untere Rand ein fast lineares Profil und alle Materialien sehen gleich aus.</p>
+            <h3>Bedienung</h3>
+            <p><b>Start</b> setzt zurück und rechnet die angegebene Schrittzahl, <b>Weiter</b> rechnet ab dem aktuellen Zustand. Eine Änderung von Knotenzahl oder dx passt das Gitter sofort an und verwirft den bisherigen Lauf. Zahlen dürfen mit Komma oder Punkt eingegeben werden; ungültige Werte werden rot markiert und auf den erlaubten Bereich begrenzt.</p>
+            <h3>Stoffwerte</h3>
+            <p>a = λ/(ρ·c) aus Wärmeleitfähigkeit λ, Dichte ρ und spezifischer Wärmekapazität c. Typische Werte: Böden, Schnee, Wasser und Luft nach Oke (1987, Boundary Layer Climates), Gestein und Baustoffe als Richtwerte nach DIN EN ISO 10456 / DIN 4108-4, Metalle bei Raumtemperatur. Natürliche Stoffe streuen je nach Porosität und Feuchte stark.</p>
+            <div class="mattable-wrap"><table class="mattable" id="matTable"></table></div>
+          </div>
+        </div>
+      </section>
+
+      <div class="status" id="status" aria-live="polite"></div>
+    </main>
+  </div>
+</div>
+
+<script>
+"use strict";
+
+/* ---------- Stoffwerte: lambda W/(m·K), rho kg/m³, c J/(kg·K) ---------- */
+const MATERIAL_GROUPS = [
+  { name: "Böden, Schnee, Wasser, Luft", items: [
+    ["Sand trocken", 0.30, 1600, 800],
+    ["Sand feucht (20 Vol.-% Wasser)", 1.60, 1800, 1178],
+    ["Ton trocken", 0.25, 1600, 890],
+    ["Ton wassergesättigt", 1.58, 2000, 1550],
+    ["Torf trocken", 0.06, 300, 1920],
+    ["Torf wassergesättigt", 0.50, 1100, 3650],
+    ["Schnee frisch", 0.06, 100, 2090],
+    ["Schnee alt", 0.42, 480, 2090],
+    ["Eis (0 °C)", 2.24, 917, 2100],
+    ["Wasser (ruhend, 20 °C)", 0.598, 998, 4182],
+    ["Luft (ruhend, 20 °C)", 0.0257, 1.204, 1005] ] },
+  { name: "Gestein und Baustoffe", items: [
+    ["Granit", 2.80, 2600, 1000],
+    ["Sandstein", 2.30, 2600, 1000],
+    ["Kalkstein", 1.70, 2200, 1000],
+    ["Beton (Normalbeton)", 2.00, 2400, 1000],
+    ["Ziegelstein (Vollziegel)", 0.81, 1800, 1000],
+    ["Putz (Kalkzement)", 1.00, 1800, 1000],
+    ["Gipskarton", 0.25, 900, 1000],
+    ["Asphalt", 0.70, 2100, 1000],
+    ["Glas", 1.00, 2500, 750],
+    ["Holz (Nadelholz)", 0.13, 500, 1600],
+    ["Dämmung (Polystyrol EPS)", 0.035, 20, 1450] ] },
+  { name: "Metalle", items: [
+    ["Eisen (rein)", 80.2, 7870, 449],
+    ["Stahl (unlegiert)", 50.0, 7850, 460],
+    ["Edelstahl", 15.0, 7900, 500],
+    ["Aluminium", 237.0, 2700, 897],
+    ["Kupfer", 401.0, 8960, 385] ] }
+];
+const MATERIALS = [];
+for (const g of MATERIAL_GROUPS)
+  for (const [name, lambda, rho, c] of g.items)
+    MATERIALS.push({ name, lambda, rho, c, group: g.name, a: lambda / (rho * c) * 1e6 });
+const DEFAULT_MATERIAL = MATERIALS.findIndex(m => m.name.startsWith("Sand feucht"));
+
+/* ---------- Modell (wie Temp1DModel.pas) ---------- */
+const MIN_NODES = 3, MAX_NODES = 21, STABILITY_LIMIT = 0.5, DIVERGENCE_LIMIT = 1e4;
+
+class HeatModel {
+  constructor() {
+    this.a = MATERIALS[DEFAULT_MATERIAL].a / 1e6; this.dx = 0.05; this.dt = 60;
+    this.tinit = 20; this.amp = 5; this.period = 24 * 3600; this.auto = true;
+    this.setNodes(11);
+  }
+  setNodes(n) { this.n = Math.min(MAX_NODES, Math.max(MIN_NODES, Math.round(n))); this.reset(); }
+  boundary(t) { return this.period > 0 ? this.tinit + this.amp * Math.cos(2 * Math.PI * t / this.period) : this.tinit + this.amp; }
+  reset() {
+    this.time = 0; this.steps = 0;
+    this.T = new Float64Array(this.n).fill(this.tinit);
+    this.T[0] = this.boundary(0);
+    this.Tmin = this.T.slice(); this.Tmax = this.T.slice();
+    this.times = [0]; this.rows = [this.T.slice()];
+  }
+  fourier() { return this.a * this.dt / (this.dx * this.dx); }
+  substeps() { const r = this.fourier(); return this.auto && r > STABILITY_LIMIT ? Math.ceil(r / STABILITY_LIMIT) : 1; }
+  stable() { return this.fourier() / this.substeps() <= STABILITY_LIMIT; }
+  depth(i) { return i * this.dx; }
+  step() {
+    const ns = this.substeps(), sdt = this.dt / ns, r = this.a * sdt / (this.dx * this.dx), n = this.n;
+    let T = this.T, Tn = new Float64Array(n);
+    for (let s = 0; s < ns; s++) {
+      this.time += sdt;
+      Tn[0] = this.boundary(this.time);
+      for (let i = 1; i < n - 1; i++) Tn[i] = T[i] + r * (T[i - 1] - 2 * T[i] + T[i + 1]);
+      Tn[n - 1] = this.tinit;
+      [T, Tn] = [Tn, T];
+    }
+    this.T = T; this.steps++;
+    for (let i = 0; i < n; i++) {
+      if (T[i] < this.Tmin[i]) this.Tmin[i] = T[i];
+      if (T[i] > this.Tmax[i]) this.Tmax[i] = T[i];
+    }
+  }
+  diverged() { for (const v of this.T) if (!Number.isFinite(v) || Math.abs(v) > DIVERGENCE_LIMIT) return true; return false; }
+  record() { this.times.push(this.time); this.rows.push(this.T.slice()); }
+}
+
+/* ---------- Isolinien (wie Temp1DContour.pas) ---------- */
+function niceStep(raw) {
+  const mag = Math.pow(10, Math.floor(Math.log10(raw)));
+  for (const f of [1, 2, 2.5, 5, 10]) if (f * mag >= raw - 1e-12) return f * mag;
+  return 10 * mag;
+}
+function niceLevels(min, max, maxCount) {
+  if (!(max - min > 1e-9)) return { levels: [], step: 1 };
+  const step = niceStep((max - min) / maxCount), levels = [];
+  for (let v = Math.ceil(min / step - 1e-9) * step; v <= max + 1e-9; v += step) levels.push(Math.round(v / step) * step);
+  return { levels, step };
+}
+function contourSegments(G, level) {
+  const segs = [], R = G.length, C = G[0].length;
+  const V = [0, 0, 0, 0], hit = [false, false, false, false], px = [0, 0, 0, 0], py = [0, 0, 0, 0];
+  const edge = (e, A, B, xa, ya, xb, yb) => {
+    hit[e] = (V[A] >= level) !== (V[B] >= level);
+    if (hit[e]) { const t = (level - V[A]) / (V[B] - V[A]); px[e] = xa + (xb - xa) * t; py[e] = ya + (yb - ya) * t; }
+  };
+  const join = (a, b) => segs.push([px[a], py[a], px[b], py[b]]);
+  for (let r = 0; r < R - 1; r++) for (let c = 0; c < C - 1; c++) {
+    V[0] = G[r][c]; V[1] = G[r][c + 1]; V[2] = G[r + 1][c + 1]; V[3] = G[r + 1][c];
+    edge(0, 0, 1, c, r, c + 1, r); edge(1, 1, 2, c + 1, r, c + 1, r + 1);
+    edge(2, 3, 2, c, r + 1, c + 1, r + 1); edge(3, 0, 3, c, r, c, r + 1);
+    const e = []; for (let k = 0; k < 4; k++) if (hit[k]) e.push(k);
+    if (e.length === 2) join(e[0], e[1]);
+    else if (e.length === 4) {
+      if (((V[0] + V[1] + V[2] + V[3]) / 4 >= level) === (V[0] >= level)) { join(0, 1); join(2, 3); }
+      else { join(0, 3); join(1, 2); }
+    }
+  }
+  return segs;
+}
+function bilinear(G, x, y) {
+  const R = G.length, C = G[0].length;
+  x = Math.min(C - 1, Math.max(0, x)); y = Math.min(R - 1, Math.max(0, y));
+  const c = Math.min(Math.floor(x), C - 2), r = Math.min(Math.floor(y), R - 2);
+  const fx = x - c, fy = y - r;
+  const top = G[r][c] + (G[r][c + 1] - G[r][c]) * fx;
+  const bot = G[r + 1][c] + (G[r + 1][c + 1] - G[r + 1][c]) * fx;
+  return top + (bot - top) * fy;
+}
+
+/* ---------- Farben ---------- */
+function hexToRgb(h) { const n = parseInt(h.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; }
+function lerpRgb(a, b, f) { return [0, 1, 2].map(i => Math.round(a[i] + (b[i] - a[i]) * f)); }
+function rampRgb(stops, f) {
+  f = Math.min(1, Math.max(0, f));
+  const p = f * (stops.length - 1), k = Math.min(Math.floor(p), stops.length - 2);
+  return lerpRgb(stops[k], stops[k + 1], p - k);
+}
+const rgbStr = c => `rgb(${c[0]},${c[1]},${c[2]})`;
+// Isoplethen: wie im Delphi-Programm violett -> blau -> cyan -> grün -> gelb -> orange -> rot
+const RAINBOW = ["#8c3cdc", "#465af0", "#3cc8f0", "#6edc78", "#faf05a", "#faaa5a", "#f03c3c"].map(hexToRgb);
+// Knoten nach Tiefe: Oberfläche warm, Tiefe kühl (eigene Stufen je Thema)
+const DEPTH_LIGHT = ["#dc2626", "#ea580c", "#0d9488", "#2563eb"].map(hexToRgb);
+const DEPTH_DARK = ["#f87171", "#fb923c", "#2dd4bf", "#60a5fa"].map(hexToRgb);
+// Schema: kalt -> neutral -> warm
+const COLD = hexToRgb("#3b82f6"), NEUTRAL = hexToRgb("#f3f4f6"), WARM = hexToRgb("#ef4444");
+
+function isDark() {
+  const t = document.documentElement.getAttribute("data-theme");
+  if (t === "dark") return true;
+  if (t === "light") return false;
+  return matchMedia("(prefers-color-scheme: dark)").matches;
+}
+function depthColor(i, n) { return rgbStr(rampRgb(isDark() ? DEPTH_DARK : DEPTH_LIGHT, n > 1 ? i / (n - 1) : 0)); }
+function tempColor(T, mid, amp) {
+  const f = Math.max(-1, Math.min(1, (T - mid) / (amp > 0 ? amp : 1)));
+  return rgbStr(f < 0 ? lerpRgb(NEUTRAL, COLD, -f) : lerpRgb(NEUTRAL, WARM, f));
+}
+function css(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+
+/* ---------- Zahlen ---------- */
+const fmt = (v, dec = 2) => {
+  if (!Number.isFinite(v)) return "–";
+  const s = v.toLocaleString("de-DE", { maximumFractionDigits: dec, useGrouping: false });
+  return /^-0(,0*)?$/.test(s) ? "0" : s;
+};
+function parseNumber(s) {
+  s = String(s).trim().replace(",", ".");
+  if (s === "" || !/^[-+]?(\d+\.?\d*|\.\d+)(e[-+]?\d+)?$/i.test(s)) return NaN;
+  return Number(s);
+}
+
+/* ---------- Eingabefelder ---------- */
+const FIELDS = {
+  fTlf:    { min: 0.001, max: 1000,   dec: 3, def: MATERIALS[DEFAULT_MATERIAL].a },
+  fNodes:  { min: MIN_NODES, max: MAX_NODES, dec: 0, def: 11 },
+  fDx:     { min: 0.1,   max: 100,    dec: 2, def: 5 },
+  fTinit:  { min: -50,   max: 100,    dec: 1, def: 20 },
+  fAmp:    { min: 0,     max: 50,     dec: 1, def: 5 },
+  fPeriod: { min: 0.1,   max: 24,     dec: 2, def: 24 },
+  fDt:     { min: 0.01,  max: 1440,   dec: 2, def: 1 },
+  fSteps:  { min: 1,     max: 100000, dec: 0, def: 1440 }
+};
+const $ = id => document.getElementById(id);
+function fieldValue(id) {
+  const f = FIELDS[id], el = $(id), v = parseNumber(el.value);
+  const valid = Number.isFinite(v) && v >= f.min && v <= f.max;
+  el.classList.toggle("invalid", !valid);
+  el.setAttribute("aria-invalid", String(!valid));
+  let out = Number.isFinite(v) ? Math.min(f.max, Math.max(f.min, v)) : f.def;
+  return f.dec === 0 ? Math.round(out) : out;
+}
+function setField(id, v) {
+  const f = FIELDS[id];
+  $(id).value = fmt(Math.min(f.max, Math.max(f.min, v)), f.dec);
+  $(id).classList.remove("invalid");
+}
+
+/* ---------- Zustand ---------- */
+const model = new HeatModel();
+let started = false;
+
+function readParams() {
+  model.a = fieldValue("fTlf") / 1e6;
+  model.dx = fieldValue("fDx") / 100;
+  model.dt = fieldValue("fDt") * 60;
+  model.tinit = fieldValue("fTinit");
+  model.amp = fieldValue("fAmp");
+  model.period = fieldValue("fPeriod") * 3600;
+  model.auto = $("fAuto").checked;
+}
+
+function resetGrid() {
+  model.setNodes(fieldValue("fNodes"));
+  started = false;
+  $("btWeiter").disabled = true;
+  hiddenSeries.clear();
+  isoCache = null;
+  buildLegend(); buildTable();
+}
+
+function onParamChanged() {
+  const oldDx = model.dx;
+  readParams();
+  if (fieldValue("fNodes") !== model.n || Math.abs(oldDx - model.dx) > 1e-12) resetGrid();
+  updateStability(); updateStatus(); drawAll();
+}
+
+function run(count) {
+  $("banner").hidden = true;
+  let diverged = false;
+  for (let k = 0; k < count; k++) {
+    model.step();
+    if (model.diverged()) { diverged = true; break; }
+    model.record();
+  }
+  if (diverged) {
+    $("banner").textContent = `Die Lösung ist instabil geworden (r = ${fmt(model.fourier(), 3)} > 0,5) und wurde nach ${model.steps} Schritten abgebrochen. ` +
+      "Zeitschritt dt verkleinern, Knotenabstand dx vergrößern oder „Stabilität sichern“ aktivieren.";
+    $("banner").hidden = false;
+  }
+  isoCache = null;
+  updateStatus(); drawAll(); buildTable();
+}
+
+function start() {
+  readParams();
+  model.setNodes(fieldValue("fNodes"));
+  started = true;
+  $("btWeiter").disabled = false;
+  buildLegend();
+  run(fieldValue("fSteps"));
+}
+function weiter() {
+  if (!started || fieldValue("fNodes") !== model.n) return start();
+  readParams();
+  run(fieldValue("fSteps"));
+}
+
+/* ---------- Anzeige: Stabilität, Status, Material ---------- */
+function updateStability() {
+  const r = model.fourier(), el = $("stability");
+  let cls, state, detail = `r = a·dt/dx² = ${fmt(r, 3)}`;
+  if (r <= STABILITY_LIMIT) { cls = "ok"; state = "Stabil (r ≤ 0,5)"; }
+  else if (model.auto) { cls = "warn"; state = `r > 0,5: ${model.substeps()} Unterschritte je dt`; }
+  else { cls = "err"; state = "Instabil: r > 0,5"; }
+  el.className = "stability " + cls;
+  el.replaceChildren();
+  const s = document.createElement("div"); s.className = "state";
+  const d = document.createElement("span"); d.className = "dot"; s.append(d, document.createTextNode(state));
+  const t = document.createElement("div"); t.className = "detail"; t.textContent = detail;
+  el.append(s, t);
+}
+function updateStatus() {
+  const d = Math.sqrt(model.a * model.period / Math.PI);
+  const items = [
+    ["Zeit", `${fmt(model.time / 3600, 2)} h`],
+    ["Schritte", String(model.steps)],
+    ["r", fmt(model.fourier(), 3)],
+    ["Unterschritte je dt", String(model.substeps())],
+    ["Dämpfungstiefe d", `${fmt(d * 100, 1)} cm`],
+    ["Gittertiefe", `${fmt(model.depth(model.n - 1) * 100, 1)} cm`]
+  ];
+  const el = $("status"); el.replaceChildren();
+  for (const [k, v] of items) {
+    const s = document.createElement("span"); const b = document.createElement("b");
+    b.textContent = v; s.append(document.createTextNode(k + ": "), b); el.append(s);
+  }
+}
+function updateMatInfo() {
+  const i = Number($("material").value);
+  $("matInfo").textContent = i >= 0
+    ? `λ = ${fmt(MATERIALS[i].lambda, 3)} W/(m·K) · ρ·c = ${fmt(MATERIALS[i].rho * MATERIALS[i].c / 1e6, 3)} MJ/(m³·K)`
+    : "Eigener Wert: a = λ / (ρ·c)";
+}
+
+/* ---------- Zeichnen: Hilfen ---------- */
+function prepCanvas(cv) {
+  const dpr = window.devicePixelRatio || 1, rect = cv.getBoundingClientRect();
+  const w = Math.max(1, Math.round(rect.width)), h = Math.max(1, Math.round(rect.height));
+  if (cv.width !== Math.round(w * dpr) || cv.height !== Math.round(h * dpr)) { cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); }
+  const ctx = cv.getContext("2d");
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, w, h);
+  return { ctx, w, h, dpr };
+}
+function font(size, weight = 400, family = "--font-body") { return `${weight} ${size}px ${css(family)}`; }
+function niceTicks(min, max, count) {
+  if (!(max > min)) return [min];
+  const step = niceStep((max - min) / count), out = [];
+  for (let v = Math.ceil(min / step - 1e-9) * step; v <= max + 1e-9; v += step) out.push(Math.round(v / step) * step);
+  return out;
+}
+function timeUnit() {
+  const tmax = model.times[model.times.length - 1] || 0;
+  return tmax >= 3 * 3600 ? { div: 3600, name: "h" } : { div: 60, name: "min" };
+}
+function visibleView(id) { return !$(id).hidden; }
+function placeTooltip(tt, chart, x, y) {
+  const cw = chart.clientWidth, tw = tt.offsetWidth, th = tt.offsetHeight;
+  let left = x + 14; if (left + tw > cw) left = x - tw - 14; if (left < 0) left = 0;
+  let top = y - th / 2; top = Math.max(0, Math.min(chart.clientHeight - th, top));
+  tt.style.left = left + "px"; tt.style.top = top + "px";
+}
+function ttRow(color, value, label, dashedKey) {
+  const row = document.createElement("div"); row.className = "tt-row";
+  const k = document.createElement("span"); k.className = "key"; k.style.background = color; if (dashedKey) k.style.opacity = ".6";
+  const b = document.createElement("b"); b.textContent = value;
+  const l = document.createElement("span"); l.textContent = label;
+  row.append(k, b, l); return row;
+}
+
+/* ---------- Systemschema ---------- */
+function drawSystem() {
+  const cv = $("cvSystem"), { ctx, w, h } = prepCanvas(cv), n = model.n;
+  $("sysTitle").textContent = `System: ${n} Knoten · dx = ${fmt(model.dx * 100, 2)} cm · Tiefe ${fmt(model.depth(n - 1) * 100, 2)} cm`;
+  const ink = css("--ink"), muted = css("--muted"), surface2 = css("--surface-2"), line = css("--line");
+  const margin = 28, spacing = (w - 2 * margin) / Math.max(n - 1, 1);
+  const D = Math.max(8, Math.min(30, spacing * 0.62)), cy = h / 2;
+  ctx.fillStyle = surface2; ctx.strokeStyle = line; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.roundRect(margin - D / 2 - 8, cy - D / 2 - 7, w - 2 * margin + D + 16, D + 14, 10); ctx.fill(); ctx.stroke();
+  ctx.textAlign = "center";
+  for (let i = 0; i < n; i++) {
+    const x = margin + i * spacing, boundary = i === 0 || i === n - 1;
+    ctx.fillStyle = tempColor(model.T[i], model.tinit, model.amp);
+    ctx.strokeStyle = depthColor(i, n); ctx.lineWidth = Math.max(2, D / 10);
+    ctx.beginPath();
+    if (boundary) ctx.roundRect(x - D / 2, cy - D / 2, D, D, D / 4); else ctx.arc(x, cy, D / 2, 0, 2 * Math.PI);
+    ctx.fill(); ctx.stroke();
+    ctx.font = font(11, 500); ctx.fillStyle = muted; ctx.textBaseline = "bottom";
+    ctx.fillText(String(i), x, cy - D / 2 - 10);
+    const s = fmt(model.T[i], 1) + " °C";
+    ctx.font = font(11, 500, "--font-data"); ctx.fillStyle = ink; ctx.textBaseline = "top";
+    if (ctx.measureText(s).width < spacing - 4) ctx.fillText(s, x, cy + D / 2 + 10);
+  }
+}
+
+/* ---------- Zeitverlauf ---------- */
+const hiddenSeries = new Set();
+let hoverTime = null;
+function buildLegend() {
+  const ul = $("legendTime"); ul.replaceChildren();
+  for (let i = 0; i < model.n; i++) {
+    const li = document.createElement("li"), lab = document.createElement("label");
+    const cb = document.createElement("input"); cb.type = "checkbox"; cb.checked = !hiddenSeries.has(i); cb.id = "leg" + i;
+    cb.addEventListener("change", () => { if (cb.checked) hiddenSeries.delete(i); else hiddenSeries.add(i); drawTime(); });
+    const key = document.createElement("span"); key.className = "key"; key.style.background = depthColor(i, model.n);
+    let text = `Knoten ${i}`;
+    if (i === 0) text += " (Rand)"; else if (i === model.n - 1) text += " (Rand, konstant)";
+    lab.append(cb, key, document.createTextNode(text)); li.append(lab); ul.append(li);
+  }
+}
+function timeLayout(w, h) { return { L: 52, R: 16, T: 12, B: 40, W: w - 68, H: h - 52 }; }
+function drawTime() {
+  const cv = $("cvTime"), { ctx, w, h } = prepCanvas(cv), lay = timeLayout(w, h);
+  const ink2 = css("--ink-2"), muted = css("--muted"), grid = css("--grid"), line = css("--line");
+  const times = model.times, rows = model.rows, N = times.length, unit = timeUnit();
+  const tmax = Math.max(times[N - 1], 60);
+  let ymin = Infinity, ymax = -Infinity;
+  for (const row of rows) for (let i = 0; i < model.n; i++) if (!hiddenSeries.has(i)) { ymin = Math.min(ymin, row[i]); ymax = Math.max(ymax, row[i]); }
+  if (!Number.isFinite(ymin)) { ymin = model.tinit - 1; ymax = model.tinit + 1; }
+  if (ymax - ymin < 0.5) { ymin -= 0.5; ymax += 0.5; }
+  const yt = niceTicks(ymin, ymax, 6); const y0 = Math.min(yt[0], ymin), y1 = Math.max(yt[yt.length - 1], ymax);
+  const X = t => lay.L + t / tmax * lay.W, Y = v => lay.T + (1 - (v - y0) / (y1 - y0)) * lay.H;
+  ctx.lineWidth = 1; ctx.font = font(11, 400, "--font-data"); ctx.fillStyle = muted;
+  ctx.textAlign = "right"; ctx.textBaseline = "middle";
+  for (const v of yt) { ctx.strokeStyle = grid; ctx.beginPath(); ctx.moveTo(lay.L, Y(v) + .5); ctx.lineTo(lay.L + lay.W, Y(v) + .5); ctx.stroke(); ctx.fillText(fmt(v, 2), lay.L - 8, Y(v)); }
+  ctx.textAlign = "center"; ctx.textBaseline = "top";
+  for (const v of niceTicks(0, tmax / unit.div, Math.max(3, Math.floor(lay.W / 90)))) ctx.fillText(fmt(v, 2), X(v * unit.div), lay.T + lay.H + 6);
+  ctx.strokeStyle = line; ctx.beginPath(); ctx.moveTo(lay.L, lay.T + lay.H + .5); ctx.lineTo(lay.L + lay.W, lay.T + lay.H + .5); ctx.stroke();
+  ctx.font = font(12, 500); ctx.fillStyle = ink2;
+  ctx.fillText(`Zeit (${unit.name})`, lay.L + lay.W / 2, lay.T + lay.H + 22);
+  ctx.save(); ctx.translate(14, lay.T + lay.H / 2); ctx.rotate(-Math.PI / 2); ctx.textBaseline = "middle"; ctx.fillText("Temperatur (°C)", 0, 0); ctx.restore();
+  if (N < 2) { ctx.fillStyle = muted; ctx.textAlign = "center"; ctx.fillText("Noch keine Daten: „Start“ drücken", lay.L + lay.W / 2, lay.T + lay.H / 2); return; }
+  const stride = Math.max(1, Math.floor(N / (lay.W * 2)));
+  ctx.lineWidth = 2; ctx.lineJoin = "round"; ctx.lineCap = "round";
+  for (let i = model.n - 1; i >= 0; i--) {
+    if (hiddenSeries.has(i)) continue;
+    ctx.strokeStyle = depthColor(i, model.n); ctx.beginPath();
+    for (let k = 0; k < N; k += stride) { const x = X(times[k]), y = Y(rows[k][i]); k ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }
+    ctx.lineTo(X(times[N - 1]), Y(rows[N - 1][i])); ctx.stroke();
+  }
+  if (hoverTime !== null) {
+    const k = nearestIndex(times, hoverTime), x = X(times[k]);
+    ctx.strokeStyle = muted; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(x + .5, lay.T); ctx.lineTo(x + .5, lay.T + lay.H); ctx.stroke();
+    const surface = css("--surface");
+    for (let i = 0; i < model.n; i++) {
+      if (hiddenSeries.has(i)) continue;
+      ctx.beginPath(); ctx.arc(x, Y(rows[k][i]), 4, 0, 2 * Math.PI);
+      ctx.fillStyle = depthColor(i, model.n); ctx.strokeStyle = surface; ctx.lineWidth = 2; ctx.fill(); ctx.stroke();
+    }
+  }
+}
+function nearestIndex(arr, v) {
+  let lo = 0, hi = arr.length - 1;
+  while (hi - lo > 1) { const m = (lo + hi) >> 1; if (arr[m] < v) lo = m; else hi = m; }
+  return Math.abs(arr[lo] - v) <= Math.abs(arr[hi] - v) ? lo : hi;
+}
+function hookTimeHover() {
+  const cv = $("cvTime"), tt = $("ttTime");
+  const move = e => {
+    if (model.times.length < 2) return;
+    const rect = cv.getBoundingClientRect(), lay = timeLayout(rect.width, rect.height);
+    const x = e.clientX - rect.left, y = e.clientY - rect.top;
+    if (x < lay.L || x > lay.L + lay.W) { leave(); return; }
+    const tmax = Math.max(model.times[model.times.length - 1], 60);
+    hoverTime = (x - lay.L) / lay.W * tmax;
+    const k = nearestIndex(model.times, hoverTime), unit = timeUnit();
+    tt.replaceChildren();
+    const title = document.createElement("div"); title.className = "tt-title";
+    title.textContent = `t = ${fmt(model.times[k] / unit.div, 2)} ${unit.name}`; tt.append(title);
+    for (let i = 0; i < model.n; i++) if (!hiddenSeries.has(i))
+      tt.append(ttRow(depthColor(i, model.n), `${fmt(model.rows[k][i], 2)} °C`, `${fmt(model.depth(i) * 100, 2)} cm`));
+    tt.hidden = false; placeTooltip(tt, cv.parentElement, x, y); drawTime();
+  };
+  const leave = () => { hoverTime = null; tt.hidden = true; drawTime(); };
+  cv.addEventListener("pointermove", move); cv.addEventListener("pointerleave", leave);
+}
+
+/* ---------- Tiefenprofil ---------- */
+function profileLayout(w, h) { return { L: 56, R: 20, T: 12, B: 40, W: w - 76, H: h - 52 }; }
+let hoverNode = null;
+function drawProfile() {
+  const cv = $("cvProfile"), { ctx, w, h } = prepCanvas(cv), lay = profileLayout(w, h);
+  const ink = css("--ink"), ink2 = css("--ink-2"), muted = css("--muted"), grid = css("--grid"), line = css("--line"), surface = css("--surface");
+  const n = model.n, warm = depthColor(0, 4), cold = depthColor(3, 4);
+  const xt = niceTicks(model.tinit - model.amp - 0.5, model.tinit + model.amp + 0.5, 6);
+  const x0 = Math.min(xt[0], ...model.Tmin), x1 = Math.max(xt[xt.length - 1], ...model.Tmax);
+  const zmax = model.depth(n - 1) * 100;
+  const X = v => lay.L + (v - x0) / (x1 - x0) * lay.W, Y = z => lay.T + z / zmax * lay.H;
+  ctx.font = font(11, 400, "--font-data"); ctx.fillStyle = muted; ctx.lineWidth = 1;
+  ctx.textAlign = "center"; ctx.textBaseline = "top";
+  for (const v of xt) { ctx.strokeStyle = grid; ctx.beginPath(); ctx.moveTo(X(v) + .5, lay.T); ctx.lineTo(X(v) + .5, lay.T + lay.H); ctx.stroke(); ctx.fillText(fmt(v, 1), X(v), lay.T + lay.H + 6); }
+  ctx.textAlign = "right"; ctx.textBaseline = "middle";
+  for (const z of niceTicks(0, zmax, 6)) { ctx.strokeStyle = grid; ctx.beginPath(); ctx.moveTo(lay.L, Y(z) + .5); ctx.lineTo(lay.L + lay.W, Y(z) + .5); ctx.stroke(); ctx.fillText(fmt(z, 1), lay.L - 8, Y(z)); }
+  ctx.font = font(12, 500); ctx.fillStyle = ink2; ctx.textAlign = "center"; ctx.textBaseline = "top";
+  ctx.fillText("Temperatur (°C)", lay.L + lay.W / 2, lay.T + lay.H + 22);
+  ctx.save(); ctx.translate(14, lay.T + lay.H / 2); ctx.rotate(-Math.PI / 2); ctx.textBaseline = "middle"; ctx.fillText("Tiefe (cm)", 0, 0); ctx.restore();
+  // Schwankungsbreite als Fläche
+  ctx.beginPath();
+  for (let i = 0; i < n; i++) { const x = X(model.Tmax[i]), y = Y(model.depth(i) * 100); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }
+  for (let i = n - 1; i >= 0; i--) ctx.lineTo(X(model.Tmin[i]), Y(model.depth(i) * 100));
+  ctx.closePath(); ctx.globalAlpha = 0.1; ctx.fillStyle = ink; ctx.fill(); ctx.globalAlpha = 1;
+  // analytische Einhüllende
+  const d = Math.sqrt(model.a * model.period / Math.PI) * 100;
+  ctx.strokeStyle = muted; ctx.lineWidth = 1;
+  for (const sgn of [1, -1]) {
+    ctx.beginPath();
+    for (let k = 0; k <= 80; k++) { const z = zmax * k / 80, x = X(model.tinit + sgn * model.amp * Math.exp(-z / d)); k ? ctx.lineTo(x, Y(z)) : ctx.moveTo(x, Y(z)); }
+    ctx.stroke();
+  }
+  const polyline = (vals, color, width) => {
+    ctx.strokeStyle = color; ctx.lineWidth = width; ctx.lineJoin = "round"; ctx.beginPath();
+    vals.forEach((v, i) => { const x = X(v), y = Y(model.depth(i) * 100); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }); ctx.stroke();
+  };
+  polyline(Array.from(model.Tmax), warm, 2);
+  polyline(Array.from(model.Tmin), cold, 2);
+  polyline(Array.from(model.T), ink, 2);
+  for (let i = 0; i < n; i++) {
+    ctx.beginPath(); ctx.arc(X(model.T[i]), Y(model.depth(i) * 100), i === hoverNode ? 6 : 4, 0, 2 * Math.PI);
+    ctx.fillStyle = ink; ctx.strokeStyle = surface; ctx.lineWidth = 2; ctx.fill(); ctx.stroke();
+  }
+  ctx.strokeStyle = line; ctx.lineWidth = 1; ctx.strokeRect(lay.L + .5, lay.T + .5, lay.W, lay.H);
+  $("keyNow").style.background = ink; $("keyMax").style.background = warm; $("keyMin").style.background = cold; $("keyAna").style.background = muted;
+}
+function hookProfileHover() {
+  const cv = $("cvProfile"), tt = $("ttProfile");
+  cv.addEventListener("pointermove", e => {
+    const rect = cv.getBoundingClientRect(), lay = profileLayout(rect.width, rect.height);
+    const y = e.clientY - rect.top, x = e.clientX - rect.left;
+    const z = (y - lay.T) / lay.H * model.depth(model.n - 1);
+    const i = Math.max(0, Math.min(model.n - 1, Math.round(z / model.dx)));
+    hoverNode = i; tt.replaceChildren();
+    const title = document.createElement("div"); title.className = "tt-title";
+    title.textContent = `Knoten ${i} · ${fmt(model.depth(i) * 100, 2)} cm`; tt.append(title);
+    tt.append(ttRow(css("--ink"), `${fmt(model.T[i], 2)} °C`, "aktuell"),
+      ttRow(depthColor(0, 4), `${fmt(model.Tmax[i], 2)} °C`, "Maximum"),
+      ttRow(depthColor(3, 4), `${fmt(model.Tmin[i], 2)} °C`, "Minimum"));
+    tt.hidden = false; placeTooltip(tt, cv.parentElement, x, y); drawProfile();
+  });
+  cv.addEventListener("pointerleave", () => { hoverNode = null; tt.hidden = true; drawProfile(); });
+}
+
+/* ---------- Isoplethen ---------- */
+let isoCache = null, isoHover = null;
+function isoGrid(maxRows) {
+  const times = model.times, rows = model.rows, N = times.length, n = model.n;
+  if (N < 2) return null;
+  const R = Math.min(N, maxRows), tmax = times[N - 1], G = [];
+  let j = 0;
+  for (let k = 0; k < R; k++) {
+    const t = tmax * k / (R - 1);
+    while (j < N - 2 && times[j + 1] < t) j++;
+    const t0 = times[j], t1 = times[j + 1], f = t1 > t0 ? Math.min(1, Math.max(0, (t - t0) / (t1 - t0))) : 0;
+    const row = new Float64Array(n);
+    for (let i = 0; i < n; i++) row[i] = rows[j][i] + (rows[j + 1][i] - rows[j][i]) * f;
+    G.push(row);
+  }
+  return { G, tmax };
+}
+function isoLayout(w, h) { const barW = 14, right = 72; return { L: 56, T: 12, B: 40, W: w - 56 - right, H: h - 52, barL: w - right + 16, barW }; }
+function drawIso() {
+  const cv = $("cvIso"), { ctx, w, h, dpr } = prepCanvas(cv), lay = isoLayout(w, h);
+  const ink2 = css("--ink-2"), muted = css("--muted"), line = css("--line");
+  if (!isoCache) {
+    const g = isoGrid(500);
+    if (g) {
+      let mn = Infinity, mx = -Infinity;
+      for (const row of g.G) for (const v of row) { mn = Math.min(mn, v); mx = Math.max(mx, v); }
+      const { levels, step } = niceLevels(mn, mx, 12);
+      const bands = levels.length + 1;
+      const bandRgb = Array.from({ length: bands }, (_, k) => rampRgb(RAINBOW, bands > 1 ? k / (bands - 1) : 0.5));
+      isoCache = { ...g, levels, step, bandRgb, segs: levels.map(L => contourSegments(g.G, L)) };
+    }
+  }
+  if (!isoCache) { ctx.font = font(12, 500); ctx.fillStyle = muted; ctx.textAlign = "center"; ctx.fillText("Noch keine Daten: „Start“ drücken", w / 2, h / 2); return; }
+  const { G, tmax, levels, step, bandRgb, segs } = isoCache, R = G.length, n = model.n, unit = timeUnit();
+  const band = v => levels.length ? Math.max(0, Math.min(levels.length, Math.floor((v - levels[0]) / step) + 1)) : 0;
+  // Farbflächen pixelgenau
+  const pw = Math.max(1, Math.round(lay.W * dpr)), ph = Math.max(1, Math.round(lay.H * dpr));
+  const img = ctx.createImageData(pw, ph), data = img.data;
+  for (let py = 0; py < ph; py++) {
+    const gx = py / Math.max(ph - 1, 1) * (n - 1);
+    for (let px = 0; px < pw; px++) {
+      const gy = px / Math.max(pw - 1, 1) * (R - 1);
+      const c = bandRgb[band(bilinear(G, gx, gy))], o = (py * pw + px) * 4;
+      data[o] = c[0]; data[o + 1] = c[1]; data[o + 2] = c[2]; data[o + 3] = 255;
+    }
+  }
+  ctx.putImageData(img, Math.round(lay.L * dpr), Math.round(lay.T * dpr));
+  // Isolinien ohne Beschriftung
+  const X = gy => lay.L + gy / (R - 1) * lay.W, Y = gx => lay.T + gx / (n - 1) * lay.H;
+  ctx.strokeStyle = css("--iso-line"); ctx.lineWidth = 1; ctx.globalAlpha = 0.75; ctx.beginPath();
+  for (const list of segs) for (const s of list) { ctx.moveTo(X(s[1]), Y(s[0])); ctx.lineTo(X(s[3]), Y(s[2])); }
+  ctx.stroke(); ctx.globalAlpha = 1;
+  ctx.strokeStyle = line; ctx.strokeRect(lay.L - .5, lay.T - .5, lay.W + 1, lay.H + 1);
+  // Achsen
+  ctx.font = font(11, 400, "--font-data"); ctx.fillStyle = muted; ctx.textAlign = "center"; ctx.textBaseline = "top";
+  for (const v of niceTicks(0, tmax / unit.div, Math.max(3, Math.floor(lay.W / 90)))) {
+    const x = lay.L + v * unit.div / tmax * lay.W;
+    ctx.strokeStyle = line; ctx.beginPath(); ctx.moveTo(x + .5, lay.T + lay.H); ctx.lineTo(x + .5, lay.T + lay.H + 4); ctx.stroke();
+    ctx.fillText(fmt(v, 2), x, lay.T + lay.H + 6);
+  }
+  ctx.textAlign = "right"; ctx.textBaseline = "middle";
+  let lastY = -Infinity;
+  for (let i = 0; i < n; i++) {
+    const y = Y(i); ctx.strokeStyle = line; ctx.beginPath(); ctx.moveTo(lay.L - 4, y + .5); ctx.lineTo(lay.L, y + .5); ctx.stroke();
+    if (y - lastY >= 14) { ctx.fillText(fmt(model.depth(i) * 100, 2), lay.L - 8, y); lastY = y; }
+  }
+  ctx.font = font(12, 500); ctx.fillStyle = ink2; ctx.textAlign = "center"; ctx.textBaseline = "top";
+  ctx.fillText(`Zeit (${unit.name})`, lay.L + lay.W / 2, lay.T + lay.H + 22);
+  ctx.save(); ctx.translate(14, lay.T + lay.H / 2); ctx.rotate(-Math.PI / 2); ctx.textBaseline = "middle"; ctx.fillText("Tiefe (cm)", 0, 0); ctx.restore();
+  // Farbskala
+  const nb = bandRgb.length;
+  for (let k = 0; k < nb; k++) {
+    const yTop = lay.T + (nb - 1 - k) / nb * lay.H, yBot = lay.T + (nb - k) / nb * lay.H;
+    ctx.fillStyle = rgbStr(bandRgb[k]); ctx.fillRect(lay.barL, yTop, lay.barW, yBot - yTop + 0.5);
+  }
+  ctx.strokeStyle = line; ctx.strokeRect(lay.barL - .5, lay.T - .5, lay.barW + 1, lay.H + 1);
+  ctx.font = font(11, 400, "--font-data"); ctx.fillStyle = muted; ctx.textAlign = "left"; ctx.textBaseline = "middle";
+  let lastLab = Infinity;
+  levels.forEach((L, k) => { const y = lay.T + (nb - 1 - k) / nb * lay.H; if (lastLab - y >= 14) { ctx.fillText(fmt(L, 2), lay.barL + lay.barW + 6, y); lastLab = y; } });
+  ctx.textAlign = "left"; ctx.textBaseline = "bottom"; ctx.fillStyle = ink2; ctx.fillText("°C", lay.barL, lay.T - 1);
+  if (isoHover) {
+    ctx.strokeStyle = "rgba(255,255,255,.9)"; ctx.lineWidth = 1; ctx.beginPath();
+    ctx.moveTo(isoHover.x + .5, lay.T); ctx.lineTo(isoHover.x + .5, lay.T + lay.H);
+    ctx.moveTo(lay.L, isoHover.y + .5); ctx.lineTo(lay.L + lay.W, isoHover.y + .5); ctx.stroke();
+  }
+}
+function hookIsoHover() {
+  const cv = $("cvIso"), tt = $("ttIso");
+  cv.addEventListener("pointermove", e => {
+    if (!isoCache) return;
+    const rect = cv.getBoundingClientRect(), lay = isoLayout(rect.width, rect.height);
+    const x = e.clientX - rect.left, y = e.clientY - rect.top;
+    if (x < lay.L || x > lay.L + lay.W || y < lay.T || y > lay.T + lay.H) { isoHover = null; tt.hidden = true; drawIso(); return; }
+    const { G, tmax } = isoCache, R = G.length, unit = timeUnit();
+    const gy = (x - lay.L) / lay.W * (R - 1), gx = (y - lay.T) / lay.H * (model.n - 1);
+    const T = bilinear(G, gx, gy);
+    isoHover = { x, y }; tt.replaceChildren();
+    const title = document.createElement("div"); title.className = "tt-title";
+    title.textContent = `t = ${fmt(gy / (R - 1) * tmax / unit.div, 2)} ${unit.name} · z = ${fmt(gx * model.dx * 100, 1)} cm`;
+    tt.append(title, ttRow(rgbStr(rampRgb(RAINBOW, 0.5)), `${fmt(T, 2)} °C`, "Temperatur"));
+    tt.hidden = false; placeTooltip(tt, cv.parentElement, x, y); drawIso();
+  });
+  cv.addEventListener("pointerleave", () => { isoHover = null; tt.hidden = true; drawIso(); });
+}
+
+/* ---------- Tabelle und CSV ---------- */
+function buildTable() {
+  const tbl = $("dataTable"); tbl.replaceChildren();
+  const N = model.times.length, stride = Math.max(1, Math.ceil(N / 250)), unit = timeUnit();
+  $("tableNote").textContent = stride > 1 ? `Jeder ${stride}. Ausgabeschritt (${Math.ceil(N / stride)} von ${N} Zeilen). Die CSV enthält alle Werte.` : `${N} Zeilen.`;
+  const head = tbl.createTHead().insertRow();
+  const th0 = document.createElement("th"); th0.textContent = `Zeit (${unit.name})`; head.append(th0);
+  for (let i = 0; i < model.n; i++) { const th = document.createElement("th"); th.textContent = `${fmt(model.depth(i) * 100, 2)} cm`; head.append(th); }
+  const body = tbl.createTBody();
+  for (let k = 0; k < N; k += stride) {
+    const tr = body.insertRow(); tr.insertCell().textContent = fmt(model.times[k] / unit.div, 3);
+    for (let i = 0; i < model.n; i++) tr.insertCell().textContent = fmt(model.rows[k][i], 3);
+  }
+}
+function csvText() {
+  const lines = ["Zeit (min);" + Array.from({ length: model.n }, (_, i) => `T${i} ${fmt(model.depth(i) * 100, 2)} cm (°C)`).join(";")];
+  for (let k = 0; k < model.times.length; k++)
+    lines.push([fmt(model.times[k] / 60, 3), ...Array.from(model.rows[k], v => fmt(v, 4))].join(";"));
+  return lines.join("\n");
+}
+function copyCsv() {
+  const text = csvText(), btn = $("btCopy"), fb = $("csvFallback");
+  const done = () => { btn.textContent = "Kopiert"; setTimeout(() => { btn.textContent = "Alle Werte als CSV kopieren"; }, 1800); };
+  const fallback = () => { fb.value = text; fb.hidden = false; fb.focus(); fb.select(); btn.textContent = "Text markiert: mit Strg+C kopieren"; };
+  try { navigator.clipboard.writeText(text).then(done, fallback); } catch (e) { fallback(); }
+}
+function buildMatTable() {
+  const t = $("matTable"), head = t.createTHead().insertRow();
+  for (const s of ["Material", "λ (W/(m·K))", "ρ (kg/m³)", "c (J/(kg·K))", "a (mm²/s)"]) { const th = document.createElement("th"); th.textContent = s; head.append(th); }
+  const b = t.createTBody();
+  for (const m of MATERIALS) {
+    const r = b.insertRow();
+    for (const v of [m.name, fmt(m.lambda, 4), fmt(m.rho, 3), fmt(m.c, 0), fmt(m.a, 3)]) r.insertCell().textContent = v;
+  }
+}
+
+/* ---------- Reiter ---------- */
+const VIEWS = ["zeitverlauf", "profil", "isoplethen", "tabelle", "info"];
+function showView(name, focus) {
+  if (!VIEWS.includes(name)) name = "zeitverlauf";
+  for (const v of VIEWS) {
+    $(v).hidden = v !== name;
+    const tab = $("tab-" + v); tab.setAttribute("aria-selected", String(v === name)); tab.tabIndex = v === name ? 0 : -1;
+  }
+  if (focus) $("tab-" + name).focus();
+  drawAll();
+}
+function drawAll() {
+  drawSystem();
+  if (visibleView("zeitverlauf")) drawTime();
+  if (visibleView("profil")) drawProfile();
+  if (visibleView("isoplethen")) drawIso();
+}
+
+/* ---------- Start ---------- */
+function init() {
+  const sel = $("material");
+  MATERIAL_GROUPS.forEach(g => {
+    const og = document.createElement("optgroup"); og.label = g.name;
+    MATERIALS.forEach((m, i) => { if (m.group === g.name) { const o = document.createElement("option"); o.value = String(i); o.textContent = `${m.name} · ${fmt(m.a, 3)} mm²/s`; og.append(o); } });
+    sel.append(og);
+  });
+  const own = document.createElement("option"); own.value = "-1"; own.textContent = "Benutzerdefiniert"; sel.append(own);
+  sel.value = String(DEFAULT_MATERIAL);
+  for (const [id, f] of Object.entries(FIELDS)) setField(id, f.def);
+  updateMatInfo(); buildMatTable();
+
+  sel.addEventListener("change", () => {
+    const i = Number(sel.value);
+    if (i >= 0) setField("fTlf", MATERIALS[i].a);
+    updateMatInfo(); onParamChanged();
+  });
+  for (const id of Object.keys(FIELDS)) {
+    const el = $(id);
+    el.addEventListener("input", () => {
+      if (id === "fTlf") {
+        const v = fieldValue("fTlf"), i = MATERIALS.findIndex(m => Math.abs(Math.round(m.a * 1000) / 1000 - v) < 1e-9);
+        sel.value = String(i); updateMatInfo();
+      }
+      onParamChanged();
+    });
+    el.addEventListener("blur", () => setField(id, fieldValue(id)));
+    el.addEventListener("keydown", e => { if (e.key === "Enter") { setField(id, fieldValue(id)); onParamChanged(); } });
+  }
+  $("fAuto").addEventListener("change", onParamChanged);
+  $("btStart").addEventListener("click", start);
+  $("btWeiter").addEventListener("click", weiter);
+  $("btCopy").addEventListener("click", copyCsv);
+
+  const tablist = document.querySelector(".tabs");
+  for (const v of VIEWS) $("tab-" + v).addEventListener("click", () => { history.replaceState(null, "", "#" + v); showView(v); });
+  tablist.addEventListener("keydown", e => {
+    const cur = VIEWS.findIndex(v => $("tab-" + v).getAttribute("aria-selected") === "true");
+    let next = null;
+    if (e.key === "ArrowRight") next = (cur + 1) % VIEWS.length;
+    if (e.key === "ArrowLeft") next = (cur - 1 + VIEWS.length) % VIEWS.length;
+    if (next !== null) { e.preventDefault(); history.replaceState(null, "", "#" + VIEWS[next]); showView(VIEWS[next], true); }
+  });
+  addEventListener("hashchange", () => showView(location.hash.slice(1)));
+
+  hookTimeHover(); hookProfileHover(); hookIsoHover();
+  let raf = 0; const redraw = () => { cancelAnimationFrame(raf); raf = requestAnimationFrame(() => { buildLegend(); drawAll(); }); };
+  new ResizeObserver(() => { cancelAnimationFrame(raf); raf = requestAnimationFrame(drawAll); }).observe(document.querySelector("main"));
+  matchMedia("(prefers-color-scheme: dark)").addEventListener("change", redraw);
+  new MutationObserver(redraw).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(drawAll);
+
+  readParams(); updateStability();
+  start();
+  showView(location.hash.slice(1));
+}
+init();
+</script>
+</body>
+</html>

@@ -74,6 +74,14 @@ Porosität, Feuchte und Temperatur deutlich.
 | Aluminium | 237.0 | 2700 | 897 | 97.9 |
 | Kupfer | 401.0 | 8960 | 385 | 116 |
 
+## Web-Version
+
+`web/index.html` ist eine eigenständige Web-Version mit demselben Modell und
+denselben Stoffwerten (einfach im Browser öffnen, kein Build nötig; lässt sich
+z. B. über GitHub Pages veröffentlichen). Sie bietet zusätzlich Hover-Werte in
+allen Diagrammen, eine Wertetabelle mit CSV-Kopie, die analytische
+Dämpfungs-Einhüllende im Tiefenprofil und einen hellen/dunklen Modus.
+
 ## Bauen
 
 * RAD Studio / Delphi mit VCL und dem mitgelieferten TeeChart Standard
