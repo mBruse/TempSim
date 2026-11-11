@@ -27,22 +27,59 @@ const
 type
   TDoubleArray = array of Double;
 
+  { Stoffwerte: Wärmeleitfähigkeit lambda (W/(m·K)), Dichte rho (kg/m³),
+    spezifische Wärmekapazität c (J/(kg·K)). Das Modell braucht die
+    Temperaturleitfähigkeit a = lambda / (rho·c). }
   TMaterial = record
     Name: string;
-    Diffusivity: Double; // mm²/s
+    Conductivity: Double;  // lambda, W/(m·K)
+    Density: Double;       // rho, kg/m³
+    SpecificHeat: Double;  // c, J/(kg·K)
   end;
 
 const
-  Materials: array[0..7] of TMaterial = (
-    (Name: 'Eisen';        Diffusivity: 22.8),
-    (Name: 'Beton';        Diffusivity: 0.994),
-    (Name: 'Sand trocken'; Diffusivity: 0.20),
-    (Name: 'Sand feucht';  Diffusivity: 0.33),
-    (Name: 'Putz';         Diffusivity: 0.58),
-    (Name: 'Ziegelstein';  Diffusivity: 0.34),
-    (Name: 'Luft';         Diffusivity: 20.0),
-    (Name: 'Wasser';       Diffusivity: 0.14)
+  { Typische Werte; natürliche Stoffe streuen je nach Porosität, Feuchte und
+    Temperatur stark. }
+  Materials: array[0..26] of TMaterial = (
+    // Böden, Schnee, Wasser, Luft (nach Oke 1987, Boundary Layer Climates, Tab. 2.1)
+    (Name: 'Sand trocken'; Conductivity: 0.3; Density: 1600; SpecificHeat: 800),  // a = 0.234 mm²/s
+    (Name: 'Sand feucht (20 Vol.-% Wasser)'; Conductivity: 1.6; Density: 1800; SpecificHeat: 1178),  // a = 0.755 mm²/s
+    (Name: 'Ton trocken'; Conductivity: 0.25; Density: 1600; SpecificHeat: 890),  // a = 0.176 mm²/s
+    (Name: 'Ton wassergesättigt'; Conductivity: 1.58; Density: 2000; SpecificHeat: 1550),  // a = 0.51 mm²/s
+    (Name: 'Torf trocken'; Conductivity: 0.06; Density: 300; SpecificHeat: 1920),  // a = 0.104 mm²/s
+    (Name: 'Torf wassergesättigt'; Conductivity: 0.5; Density: 1100; SpecificHeat: 3650),  // a = 0.125 mm²/s
+    (Name: 'Schnee frisch'; Conductivity: 0.06; Density: 100; SpecificHeat: 2090),  // a = 0.287 mm²/s
+    (Name: 'Schnee alt'; Conductivity: 0.42; Density: 480; SpecificHeat: 2090),  // a = 0.419 mm²/s
+    (Name: 'Eis (0 °C)'; Conductivity: 2.24; Density: 917; SpecificHeat: 2100),  // a = 1.16 mm²/s
+    (Name: 'Wasser (ruhend, 20 °C)'; Conductivity: 0.598; Density: 998; SpecificHeat: 4182),  // a = 0.143 mm²/s
+    (Name: 'Luft (ruhend, 20 °C)'; Conductivity: 0.0257; Density: 1.204; SpecificHeat: 1005),  // a = 21.2 mm²/s
+    // Gestein und Baustoffe (Richtwerte nach DIN EN ISO 10456 / DIN 4108-4)
+    (Name: 'Granit'; Conductivity: 2.8; Density: 2600; SpecificHeat: 1000),  // a = 1.08 mm²/s
+    (Name: 'Sandstein'; Conductivity: 2.3; Density: 2600; SpecificHeat: 1000),  // a = 0.885 mm²/s
+    (Name: 'Kalkstein'; Conductivity: 1.7; Density: 2200; SpecificHeat: 1000),  // a = 0.773 mm²/s
+    (Name: 'Beton (Normalbeton)'; Conductivity: 2.0; Density: 2400; SpecificHeat: 1000),  // a = 0.833 mm²/s
+    (Name: 'Ziegelstein (Vollziegel)'; Conductivity: 0.81; Density: 1800; SpecificHeat: 1000),  // a = 0.45 mm²/s
+    (Name: 'Putz (Kalkzement)'; Conductivity: 1.0; Density: 1800; SpecificHeat: 1000),  // a = 0.556 mm²/s
+    (Name: 'Gipskarton'; Conductivity: 0.25; Density: 900; SpecificHeat: 1000),  // a = 0.278 mm²/s
+    (Name: 'Asphalt'; Conductivity: 0.7; Density: 2100; SpecificHeat: 1000),  // a = 0.333 mm²/s
+    (Name: 'Glas'; Conductivity: 1.0; Density: 2500; SpecificHeat: 750),  // a = 0.533 mm²/s
+    (Name: 'Holz (Nadelholz)'; Conductivity: 0.13; Density: 500; SpecificHeat: 1600),  // a = 0.163 mm²/s
+    (Name: 'Dämmung (Polystyrol EPS)'; Conductivity: 0.035; Density: 20; SpecificHeat: 1450),  // a = 1.21 mm²/s
+    // Metalle (Raumtemperatur)
+    (Name: 'Eisen (rein)'; Conductivity: 80.2; Density: 7870; SpecificHeat: 449),  // a = 22.7 mm²/s
+    (Name: 'Stahl (unlegiert)'; Conductivity: 50.0; Density: 7850; SpecificHeat: 460),  // a = 13.8 mm²/s
+    (Name: 'Edelstahl'; Conductivity: 15.0; Density: 7900; SpecificHeat: 500),  // a = 3.8 mm²/s
+    (Name: 'Aluminium'; Conductivity: 237.0; Density: 2700; SpecificHeat: 897),  // a = 97.9 mm²/s
+    (Name: 'Kupfer'; Conductivity: 401.0; Density: 8960; SpecificHeat: 385)  // a = 116 mm²/s
   );
+
+  DefaultMaterial = 1; // Sand feucht
+
+{ Temperaturleitfähigkeit a = lambda / (rho·c) in mm²/s. }
+function MaterialDiffusivity(const M: TMaterial): Double;
+
+{ Volumetrische Wärmekapazität rho·c in MJ/(m³·K). }
+function MaterialHeatCapacity(const M: TMaterial): Double;
 
 { Liest eine Zahl mit Dezimalkomma oder -punkt ("1,5" und "1.5"). }
 function TryParseNumber(const S: string; out Value: Double): Boolean;
@@ -91,6 +128,16 @@ implementation
 uses
   SysUtils, Math;
 
+function MaterialDiffusivity(const M: TMaterial): Double;
+begin
+  Result := M.Conductivity / (M.Density * M.SpecificHeat) * 1E6;
+end;
+
+function MaterialHeatCapacity(const M: TMaterial): Double;
+begin
+  Result := M.Density * M.SpecificHeat / 1E6;
+end;
+
 function TryParseNumber(const S: string; out Value: Double): Boolean;
 var
   FS: TFormatSettings;
@@ -104,7 +151,7 @@ end;
 constructor THeatModel1D.Create;
 begin
   inherited Create;
-  Diffusivity := Materials[3].Diffusivity / 1E6;
+  Diffusivity := MaterialDiffusivity(Materials[DefaultMaterial]) / 1E6;
   Dx := 0.01;
   Dt := 60;
   TInit := 20;

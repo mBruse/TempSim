@@ -23,6 +23,7 @@ type
     gbMaterial: TGroupBox;
     cbMaterial: TComboBox;
     lblTlf: TLabel;
+    lblMaterialInfo: TLabel;
     edTlf: TEdit;
     gbGrid: TGroupBox;
     lblNodes: TLabel;
@@ -102,6 +103,7 @@ type
     procedure UpdateStability;
     procedure UpdateStatus;
     procedure UpdateButtons;
+    procedure UpdateMaterialInfo;
     procedure InvalidateIsopleth;
     function BuildIsoplethGrid(MaxRows: Integer; out TimeMax: Double): TGrid;
     procedure RenderIsopleth(W, H: Integer);
@@ -190,11 +192,12 @@ begin
     cbMaterial.Items.Clear;
     for M in Materials do
       cbMaterial.Items.Add(Format('%s  (%s mm²/s)',
-        [M.Name, FormatFloat('0.###', M.Diffusivity)]));
+        [M.Name, FormatFloat('0.###', MaterialDiffusivity(M))]));
     cbMaterial.Items.Add('Benutzerdefiniert');
-    cbMaterial.ItemIndex := 3; // Sand feucht
+    cbMaterial.DropDownCount := 16;
+    cbMaterial.ItemIndex := DefaultMaterial;
 
-    SetupField(edTlf, Materials[3].Diffusivity, 0.001, 1000, 3);
+    SetupField(edTlf, MaterialDiffusivity(Materials[DefaultMaterial]), 0.001, 1000, 3);
     SetupField(edNodes, 6, MinNodes, MaxNodes, 0);
     SetupField(edDx, 1, 0.1, 100, 2);
     SetupField(edTinit, 20, -50, 100, 1);
@@ -209,6 +212,7 @@ begin
 
   // Stabilitätshinweis soll seine Farbe auch unter VCL-Styles behalten
   lblStability.StyleElements := [seClient, seBorder];
+  UpdateMaterialInfo;
 
   SetupCharts;
   FillStyles;
@@ -365,6 +369,12 @@ begin
     L.Add('Explizites Differenzenverfahren (FTCS):');
     L.Add('   T_i(t+dt) = T_i(t) + r · ( T_i-1(t) − 2·T_i(t) + T_i+1(t) )');
     L.Add('   mit der Fourier-Zahl  r = a · dt / dx²');
+    L.Add('');
+    L.Add('Stoffwerte:');
+    L.Add('   Temperaturleitfähigkeit a = λ / (ρ·c) aus Wärmeleitfähigkeit λ, Dichte ρ');
+    L.Add('   und spezifischer Wärmekapazität c. Typische Werte nach Oke (1987),');
+    L.Add('   DIN EN ISO 10456 / DIN 4108-4 und Standardtabellen für Metalle;');
+    L.Add('   natürliche Böden streuen je nach Porosität und Feuchte stark.');
     L.Add('');
     L.Add('Randbedingungen:');
     L.Add('   T(0)   = Tinit + A · cos(2π · t / P)   (Amplitude A, Periode P)');
@@ -539,6 +549,19 @@ begin
     [FormatFloat('0.###', FModel.FourierNumber), FModel.SubstepCount]);
 end;
 
+procedure TfrmTemp1D.UpdateMaterialInfo;
+var
+  Idx: Integer;
+begin
+  Idx := cbMaterial.ItemIndex;
+  if (Idx >= Low(Materials)) and (Idx <= High(Materials)) then
+    lblMaterialInfo.Caption := Format('λ = %s W/(m·K),  ρ·c = %s MJ/(m³·K)',
+      [FormatFloat('0.###', Materials[Idx].Conductivity),
+       FormatFloat('0.###', MaterialHeatCapacity(Materials[Idx]))])
+  else
+    lblMaterialInfo.Caption := 'Eigener Wert: a = λ / (ρ·c)';
+end;
+
 procedure TfrmTemp1D.UpdateButtons;
 begin
   btEinzelschritt.Enabled := FStarted;
@@ -610,11 +633,12 @@ begin
   begin
     FUpdating := True;
     try
-      SetFieldValue(edTlf, Materials[Idx].Diffusivity);
+      SetFieldValue(edTlf, MaterialDiffusivity(Materials[Idx]));
     finally
       FUpdating := False;
     end;
   end;
+  UpdateMaterialInfo;
   ParamChanged(Sender);
 end;
 
@@ -624,14 +648,20 @@ var
 begin
   if FUpdating or (FModel = nil) then
     Exit;
-  // Passendes Material auswählen, sonst "Benutzerdefiniert"
-  cbMaterial.ItemIndex := cbMaterial.Items.Count - 1;
-  for i := Low(Materials) to High(Materials) do
-    if SameValue(FieldValue(edTlf), Materials[i].Diffusivity, 1E-6) then
-    begin
-      cbMaterial.ItemIndex := i;
-      Break;
-    end;
+  // Passendes Material auswählen (das Feld zeigt a auf 3 Nachkommastellen),
+  // sonst "Benutzerdefiniert"
+  if (cbMaterial.ItemIndex < Low(Materials)) or (cbMaterial.ItemIndex > High(Materials)) or
+    not SameValue(FieldValue(edTlf), RoundTo(MaterialDiffusivity(Materials[cbMaterial.ItemIndex]), -3), 1E-9) then
+  begin
+    cbMaterial.ItemIndex := cbMaterial.Items.Count - 1;
+    for i := Low(Materials) to High(Materials) do
+      if SameValue(FieldValue(edTlf), RoundTo(MaterialDiffusivity(Materials[i]), -3), 1E-9) then
+      begin
+        cbMaterial.ItemIndex := i;
+        Break;
+      end;
+  end;
+  UpdateMaterialInfo;
   ParamChanged(Sender);
 end;
 

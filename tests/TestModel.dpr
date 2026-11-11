@@ -55,11 +55,34 @@ begin
   try
     Check(SameValue(M.Period, 24 * 3600, 1E-9), 'Standardperiode 24 h');
 
-    // Standardwerte: Sand feucht, dx = 1 cm, dt = 1 min, 6 Knoten;
-    // Periode 2 h wie im Originalprogramm
+    // Standardmaterial muss mit dx = 1 cm, dt = 1 min stabil sein
+    Check(M.IsStable and (M.SubstepCount = 1),
+      Format('Standardwerte stabil, keine Unterschritte (r = %.3f)', [M.FourierNumber]));
+
+    // Stofftabelle: a = lambda/(rho*c) im plausiblen Bereich, Referenzwerte
+    MaxDiff := 0;
+    for i := Low(Materials) to High(Materials) do
+      if not InRange(MaterialDiffusivity(Materials[i]), 0.05, 200) then
+        MaxDiff := 1;
+    Check(MaxDiff = 0, 'alle Materialien: 0,05 <= a <= 200 mm²/s');
+    Check(Pos('Sand feucht', Materials[DefaultMaterial].Name) = 1, 'Standardmaterial ist Sand feucht');
+    for i := Low(Materials) to High(Materials) do
+    begin
+      if Pos('Wasser (', Materials[i].Name) = 1 then
+        Check(Abs(MaterialDiffusivity(Materials[i]) - 0.143) < 0.002, 'Wasser a = 0,143 mm²/s');
+      if Pos('Eisen', Materials[i].Name) = 1 then
+        Check(Abs(MaterialDiffusivity(Materials[i]) - 22.8) < 0.5, 'Eisen a ~ 22,8 mm²/s');
+      if Pos('Luft', Materials[i].Name) = 1 then
+        Check(Abs(MaterialDiffusivity(Materials[i]) - 21) < 1.5, 'Luft a ~ 21 mm²/s');
+      if Pos('Eis (', Materials[i].Name) = 1 then
+        Check(Abs(MaterialDiffusivity(Materials[i]) - 1.16) < 0.02, 'Eis a = 1,16 mm²/s');
+    end;
+
+    // Vergleich mit dem Originalprogramm: Sand feucht hatte dort 0,33 mm²/s,
+    // Periode 2 h
+    M.Diffusivity := 0.33E-6;
     M.Period := 2 * 3600;
-    Check(Abs(M.FourierNumber - 0.198) < 1E-9, 'Fourier-Zahl Standardwerte = 0.198');
-    Check(M.IsStable and (M.SubstepCount = 1), 'Standardwerte stabil, keine Unterschritte');
+    Check(Abs(M.FourierNumber - 0.198) < 1E-9, 'Fourier-Zahl Originalwerte = 0.198');
 
     // Vergleich mit dem Originalalgorithmus (Unterschied nur durch Single/Double
     // und den Startwert von Knoten 0)

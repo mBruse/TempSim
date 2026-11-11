@@ -48,7 +48,7 @@ object frmTemp1D: TfrmTemp1D
       Left = 12
       Top = 45
       Width = 276
-      Height = 92
+      Height = 116
       Margins.Left = 12
       Margins.Top = 4
       Margins.Right = 12
@@ -56,12 +56,20 @@ object frmTemp1D: TfrmTemp1D
       Align = alTop
       Caption = ' Material '
       TabOrder = 0
+      object lblMaterialInfo: TLabel
+        Left = 12
+        Top = 52
+        Width = 252
+        Height = 15
+        AutoSize = False
+        Caption = 'lblMaterialInfo'
+      end
       object lblTlf: TLabel
         Left = 12
-        Top = 60
+        Top = 84
         Width = 134
         Height = 15
-        Caption = 'Leitf'#228'higkeit a (mm'#178'/s)'
+        Caption = 'Temp.-Leitf'#228'higkeit a (mm'#178'/s)'
       end
       object cbMaterial: TComboBox
         Left = 12
@@ -74,7 +82,7 @@ object frmTemp1D: TfrmTemp1D
       end
       object edTlf: TEdit
         Left = 180
-        Top = 56
+        Top = 80
         Width = 84
         Height = 23
         TabOrder = 1
@@ -85,7 +93,7 @@ object frmTemp1D: TfrmTemp1D
     object gbGrid: TGroupBox
       AlignWithMargins = True
       Left = 12
-      Top = 145
+      Top = 169
       Width = 276
       Height = 92
       Margins.Left = 12
@@ -131,7 +139,7 @@ object frmTemp1D: TfrmTemp1D
     object gbBoundary: TGroupBox
       AlignWithMargins = True
       Left = 12
-      Top = 245
+      Top = 269
       Width = 276
       Height = 124
       Margins.Left = 12
@@ -193,7 +201,7 @@ object frmTemp1D: TfrmTemp1D
     object gbTime: TGroupBox
       AlignWithMargins = True
       Left = 12
-      Top = 377
+      Top = 401
       Width = 276
       Height = 124
       Margins.Left = 12
@@ -247,7 +255,7 @@ object frmTemp1D: TfrmTemp1D
     object lblStability: TLabel
       AlignWithMargins = True
       Left = 12
-      Top = 513
+      Top = 537
       Width = 276
       Height = 44
       Margins.Left = 12
