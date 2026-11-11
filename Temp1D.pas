@@ -442,6 +442,8 @@ begin
       Title := Title + ' – Rand, konstant';
     FTimeSeries[i].Title := Title;
   end;
+  // Ein geänderter Serientitel löst in TeeChart kein Neuzeichnen der Legende aus
+  ChartTime.Invalidate;
 end;
 
 procedure TfrmTemp1D.AddTimePoints;
