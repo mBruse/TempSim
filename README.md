@@ -16,7 +16,8 @@ der letzte Knoten bleibt konstant auf `Tinit`.
 
 * Links: Material (Temperaturleitfähigkeit), Gitter (Knotenzahl, dx),
   Start-/Randbedingungen (Tinit, Amplitude A, Periode P), Zeitschritt dt und
-  Schrittzahl. Eingaben akzeptieren das Dezimaltrennzeichen des Systems.
+  Schrittzahl. Eingaben akzeptieren Dezimalkomma und -punkt; ungültige oder
+  außerhalb des Bereichs liegende Werte werden rot markiert und begrenzt.
 * Die Fourier-Zahl r wird live angezeigt. Für r > 0,5 ist das explizite Verfahren
   instabil; mit „Stabilität sichern“ wird dt intern in Unterschritte geteilt.
   Ohne diese Option wird eine divergierende Lösung erkannt und abgebrochen.
@@ -30,8 +31,9 @@ der letzte Knoten bleibt konstant auf `Tinit`.
 
 ## Bauen
 
-* RAD Studio / Delphi 11 Alexandria oder neuer (VCL, TeeChart Standard,
-  `TNumberBox`): `Temperatur1D.dproj` öffnen und kompilieren.
+* RAD Studio / Delphi mit VCL und dem mitgelieferten TeeChart Standard
+  (Projekt zuletzt mit Delphi 11 gespeichert): `Temperatur1D.dproj` öffnen
+  und kompilieren. Es werden nur Standard-VCL-Komponenten verwendet.
 * Optional für den Windows-11-Look: *Projekt > Optionen > Anwendung >
   Erscheinungsbild* → „Windows11 Modern Light“ (und ggf. „… Dark“) aktivieren.
   Sind mehrere Styles eingebunden, erscheint im Programm eine Design-Auswahl.

@@ -3,37 +3,44 @@
 interface
 
 uses
-  Winapi.Windows, Winapi.Messages, System.SysUtils, System.Classes, System.Math,
+  Winapi.Windows, System.SysUtils, System.Classes, System.Math,
   System.UITypes, Vcl.Graphics, Vcl.Controls, Vcl.Forms, Vcl.Dialogs,
-  Vcl.StdCtrls, Vcl.ExtCtrls, Vcl.ComCtrls, Vcl.NumberBox, Vcl.Themes,
+  Vcl.StdCtrls, Vcl.ExtCtrls, Vcl.ComCtrls, Vcl.Themes,
   VCLTee.TeEngine, VCLTee.Series, VCLTee.TeeProcs, VCLTee.Chart,
   VCLTee.TeeGDIPlus, Temp1DModel, Temp1DContour;
 
 type
+  // Zahlenfeld: Eingabe mit Grenzen, Dezimalkomma oder -punkt
+  TNumField = record
+    Edit: TEdit;
+    MinValue, MaxValue, Default: Double;
+    Decimals: Integer;
+  end;
+
   TfrmTemp1D = class(TForm)
     pnlSettings: TPanel;
     lblHeader: TLabel;
     gbMaterial: TGroupBox;
     cbMaterial: TComboBox;
     lblTlf: TLabel;
-    nbTlf: TNumberBox;
+    edTlf: TEdit;
     gbGrid: TGroupBox;
     lblNodes: TLabel;
-    nbNodes: TNumberBox;
+    edNodes: TEdit;
     lblDx: TLabel;
-    nbDx: TNumberBox;
+    edDx: TEdit;
     gbBoundary: TGroupBox;
     lblTinit: TLabel;
-    nbTinit: TNumberBox;
+    edTinit: TEdit;
     lblAmplitude: TLabel;
-    nbAmplitude: TNumberBox;
+    edAmplitude: TEdit;
     lblPeriod: TLabel;
-    nbPeriod: TNumberBox;
+    edPeriod: TEdit;
     gbTime: TGroupBox;
     lblDt: TLabel;
-    nbDt: TNumberBox;
+    edDt: TEdit;
     lblSteps: TLabel;
-    nbSteps: TNumberBox;
+    edSteps: TEdit;
     cbAutoSubstep: TCheckBox;
     lblStability: TLabel;
     pnlButtons: TPanel;
@@ -62,21 +69,27 @@ type
     procedure btEinzelschrittClick(Sender: TObject);
     procedure btExportClick(Sender: TObject);
     procedure cbMaterialChange(Sender: TObject);
-    procedure nbTlfChangeValue(Sender: TObject);
+    procedure edTlfChange(Sender: TObject);
+    procedure FieldExit(Sender: TObject);
     procedure cbStyleChange(Sender: TObject);
     procedure ParamChanged(Sender: TObject);
     procedure pbSystemPaint(Sender: TObject);
     procedure pbIsoplethPaint(Sender: TObject);
   private
     FModel: THeatModel1D;
+    FFields: array of TNumField;
     FTimeSeries: array of TLineSeries;
     FProfileSeries, FMinSeries, FMaxSeries: THorizLineSeries;
     FStarted: Boolean;
     FUpdating: Boolean;
     FIsoBitmap: TBitmap;
     FIsoDirty: Boolean;
-    procedure SetupNumberBox(Box: TNumberBox; AValue, AMin, AMax: Double;
-      ADecimals: Byte);
+    procedure SetupField(Edit: TEdit; AValue, AMin, AMax: Double;
+      ADecimals: Integer);
+    function FieldIndex(Edit: TEdit): Integer;
+    function FieldValue(Edit: TEdit): Double;
+    function FieldInt(Edit: TEdit): Integer;
+    procedure SetFieldValue(Edit: TEdit; AValue: Double);
     procedure SetupCharts;
     procedure FillStyles;
     procedure FillInfoText;
@@ -182,14 +195,14 @@ begin
     cbMaterial.Items.Add('Benutzerdefiniert');
     cbMaterial.ItemIndex := 3; // Sand feucht
 
-    SetupNumberBox(nbTlf, Materials[3].Diffusivity, 0.001, 1000, 3);
-    SetupNumberBox(nbNodes, 6, MinNodes, MaxNodes, 0);
-    SetupNumberBox(nbDx, 1, 0.1, 100, 2);
-    SetupNumberBox(nbTinit, 20, -50, 100, 1);
-    SetupNumberBox(nbAmplitude, 5, 0, 50, 1);
-    SetupNumberBox(nbPeriod, 24, 0.1, 24, 2);
-    SetupNumberBox(nbDt, 1, 0.01, 1440, 2);
-    SetupNumberBox(nbSteps, 1440, 1, 100000, 0);
+    SetupField(edTlf, Materials[3].Diffusivity, 0.001, 1000, 3);
+    SetupField(edNodes, 6, MinNodes, MaxNodes, 0);
+    SetupField(edDx, 1, 0.1, 100, 2);
+    SetupField(edTinit, 20, -50, 100, 1);
+    SetupField(edAmplitude, 5, 0, 50, 1);
+    SetupField(edPeriod, 24, 0.1, 24, 2);
+    SetupField(edDt, 1, 0.01, 1440, 2);
+    SetupField(edSteps, 1440, 1, 100000, 0);
     cbAutoSubstep.Checked := True;
   finally
     FUpdating := False;
@@ -203,7 +216,7 @@ begin
   FillInfoText;
 
   ReadParams;
-  FModel.NodeCount := nbNodes.ValueInt;
+  FModel.NodeCount := FieldInt(edNodes);
   BuildSeries;
   UpdateProfile;
   UpdateStability;
@@ -218,13 +231,78 @@ begin
   FModel.Free;
 end;
 
-procedure TfrmTemp1D.SetupNumberBox(Box: TNumberBox; AValue, AMin, AMax: Double;
-  ADecimals: Byte);
+procedure TfrmTemp1D.SetupField(Edit: TEdit; AValue, AMin, AMax: Double;
+  ADecimals: Integer);
+var
+  F: TNumField;
 begin
-  Box.MinValue := AMin;
-  Box.MaxValue := AMax;
-  Box.Decimal := ADecimals;
-  Box.Value := AValue;
+  F.Edit := Edit;
+  F.MinValue := AMin;
+  F.MaxValue := AMax;
+  F.Default := AValue;
+  F.Decimals := ADecimals;
+  SetLength(FFields, Length(FFields) + 1);
+  FFields[High(FFields)] := F;
+  // Schriftfarbe selbst setzen (rot bei ungültiger Eingabe), auch unter VCL-Styles
+  Edit.StyleElements := [seClient, seBorder];
+  Edit.Alignment := taRightJustify;
+  SetFieldValue(Edit, AValue);
+end;
+
+function TfrmTemp1D.FieldIndex(Edit: TEdit): Integer;
+var
+  i: Integer;
+begin
+  for i := 0 to High(FFields) do
+    if FFields[i].Edit = Edit then
+      Exit(i);
+  raise Exception.CreateFmt('Kein Zahlenfeld: %s', [Edit.Name]);
+end;
+
+function TfrmTemp1D.FieldValue(Edit: TEdit): Double;
+var
+  F: TNumField;
+  Parsed, Valid: Boolean;
+begin
+  F := FFields[FieldIndex(Edit)];
+  Parsed := TryParseNumber(Edit.Text, Result) and not IsNan(Result);
+  Valid := Parsed and (Result >= F.MinValue) and (Result <= F.MaxValue);
+  if not Parsed then
+    Result := F.Default
+  else if not Valid then
+    Result := EnsureRange(Result, F.MinValue, F.MaxValue);
+
+  if Valid then
+    Edit.Font.Color := StyleServices.GetSystemColor(clWindowText)
+  else
+    Edit.Font.Color := ErrorColor;
+end;
+
+function TfrmTemp1D.FieldInt(Edit: TEdit): Integer;
+begin
+  Result := Round(FieldValue(Edit));
+end;
+
+procedure TfrmTemp1D.SetFieldValue(Edit: TEdit; AValue: Double);
+var
+  F: TNumField;
+  Fmt: string;
+begin
+  F := FFields[FieldIndex(Edit)];
+  if F.Decimals > 0 then
+    Fmt := '0.' + StringOfChar('#', F.Decimals)
+  else
+    Fmt := '0';
+  Edit.Text := FormatFloat(Fmt, EnsureRange(AValue, F.MinValue, F.MaxValue));
+end;
+
+procedure TfrmTemp1D.FieldExit(Sender: TObject);
+var
+  Edit: TEdit;
+begin
+  // Beim Verlassen auf den gültigen (ggf. begrenzten) Wert normieren
+  Edit := Sender as TEdit;
+  SetFieldValue(Edit, FieldValue(Edit));
 end;
 
 procedure TfrmTemp1D.SetupCharts;
@@ -316,12 +394,12 @@ end;
 
 procedure TfrmTemp1D.ReadParams;
 begin
-  FModel.Diffusivity := nbTlf.Value / 1E6;         // mm²/s -> m²/s
-  FModel.Dx := Max(nbDx.Value, 0.01) / 100;        // cm -> m
-  FModel.Dt := Max(nbDt.Value, 0.001) * 60;        // min -> s
-  FModel.TInit := nbTinit.Value;
-  FModel.Amplitude := nbAmplitude.Value;
-  FModel.Period := nbPeriod.Value * 3600;          // h -> s
+  FModel.Diffusivity := FieldValue(edTlf) / 1E6;         // mm²/s -> m²/s
+  FModel.Dx := Max(FieldValue(edDx), 0.01) / 100;        // cm -> m
+  FModel.Dt := Max(FieldValue(edDt), 0.001) * 60;        // min -> s
+  FModel.TInit := FieldValue(edTinit);
+  FModel.Amplitude := FieldValue(edAmplitude);
+  FModel.Period := FieldValue(edPeriod) * 3600;          // h -> s
   FModel.AutoSubstep := cbAutoSubstep.Checked;
 end;
 
@@ -483,25 +561,25 @@ end;
 procedure TfrmTemp1D.btStartClick(Sender: TObject);
 begin
   ReadParams;
-  FModel.NodeCount := nbNodes.ValueInt;
+  FModel.NodeCount := FieldInt(edNodes);
   FModel.Reset;
   BuildSeries;
   AddTimePoints;
   FStarted := True;
   UpdateButtons;
-  RunSteps(nbSteps.ValueInt);
+  RunSteps(FieldInt(edSteps));
 end;
 
 procedure TfrmTemp1D.btEinzelschrittClick(Sender: TObject);
 begin
   // Ohne laufende Simulation oder bei geänderter Knotenzahl neu starten
-  if not FStarted or (nbNodes.ValueInt <> FModel.NodeCount) then
+  if not FStarted or (FieldInt(edNodes) <> FModel.NodeCount) then
   begin
     btStartClick(Sender);
     Exit;
   end;
   ReadParams;
-  RunSteps(nbSteps.ValueInt);
+  RunSteps(FieldInt(edSteps));
 end;
 
 procedure TfrmTemp1D.btExportClick(Sender: TObject);
@@ -545,7 +623,7 @@ begin
   begin
     FUpdating := True;
     try
-      nbTlf.Value := Materials[Idx].Diffusivity;
+      SetFieldValue(edTlf, Materials[Idx].Diffusivity);
     finally
       FUpdating := False;
     end;
@@ -553,7 +631,7 @@ begin
   ParamChanged(Sender);
 end;
 
-procedure TfrmTemp1D.nbTlfChangeValue(Sender: TObject);
+procedure TfrmTemp1D.edTlfChange(Sender: TObject);
 var
   i: Integer;
 begin
@@ -562,7 +640,7 @@ begin
   // Passendes Material auswählen, sonst "Benutzerdefiniert"
   cbMaterial.ItemIndex := cbMaterial.Items.Count - 1;
   for i := Low(Materials) to High(Materials) do
-    if SameValue(nbTlf.Value, Materials[i].Diffusivity, 1E-6) then
+    if SameValue(FieldValue(edTlf), Materials[i].Diffusivity, 1E-6) then
     begin
       cbMaterial.ItemIndex := i;
       Break;

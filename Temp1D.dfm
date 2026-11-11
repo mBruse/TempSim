@@ -72,14 +72,14 @@ object frmTemp1D: TfrmTemp1D
         TabOrder = 0
         OnChange = cbMaterialChange
       end
-      object nbTlf: TNumberBox
+      object edTlf: TEdit
         Left = 180
         Top = 56
         Width = 84
         Height = 23
-        Mode = nbmFloat
         TabOrder = 1
-        OnChangeValue = nbTlfChangeValue
+        OnChange = edTlfChange
+        OnExit = FieldExit
       end
     end
     object gbGrid: TGroupBox
@@ -109,23 +109,23 @@ object frmTemp1D: TfrmTemp1D
         Height = 15
         Caption = 'Knotenabstand dx (cm)'
       end
-      object nbNodes: TNumberBox
+      object edNodes: TEdit
         Left = 180
         Top = 24
         Width = 84
         Height = 23
-        Mode = nbmInteger
         TabOrder = 0
-        OnChangeValue = ParamChanged
+        OnChange = ParamChanged
+        OnExit = FieldExit
       end
-      object nbDx: TNumberBox
+      object edDx: TEdit
         Left = 180
         Top = 56
         Width = 84
         Height = 23
-        Mode = nbmFloat
         TabOrder = 1
-        OnChangeValue = ParamChanged
+        OnChange = ParamChanged
+        OnExit = FieldExit
       end
     end
     object gbBoundary: TGroupBox
@@ -162,32 +162,32 @@ object frmTemp1D: TfrmTemp1D
         Height = 15
         Caption = 'Periode links P (h)'
       end
-      object nbTinit: TNumberBox
+      object edTinit: TEdit
         Left = 180
         Top = 24
         Width = 84
         Height = 23
-        Mode = nbmFloat
         TabOrder = 0
-        OnChangeValue = ParamChanged
+        OnChange = ParamChanged
+        OnExit = FieldExit
       end
-      object nbAmplitude: TNumberBox
+      object edAmplitude: TEdit
         Left = 180
         Top = 56
         Width = 84
         Height = 23
-        Mode = nbmFloat
         TabOrder = 1
-        OnChangeValue = ParamChanged
+        OnChange = ParamChanged
+        OnExit = FieldExit
       end
-      object nbPeriod: TNumberBox
+      object edPeriod: TEdit
         Left = 180
         Top = 88
         Width = 84
         Height = 23
-        Mode = nbmFloat
         TabOrder = 2
-        OnChangeValue = ParamChanged
+        OnChange = ParamChanged
+        OnExit = FieldExit
       end
     end
     object gbTime: TGroupBox
@@ -217,22 +217,22 @@ object frmTemp1D: TfrmTemp1D
         Height = 15
         Caption = 'Schritte pro Klick'
       end
-      object nbDt: TNumberBox
+      object edDt: TEdit
         Left = 180
         Top = 24
         Width = 84
         Height = 23
-        Mode = nbmFloat
         TabOrder = 0
-        OnChangeValue = ParamChanged
+        OnChange = ParamChanged
+        OnExit = FieldExit
       end
-      object nbSteps: TNumberBox
+      object edSteps: TEdit
         Left = 180
         Top = 56
         Width = 84
         Height = 23
-        Mode = nbmInteger
         TabOrder = 1
+        OnExit = FieldExit
       end
       object cbAutoSubstep: TCheckBox
         Left = 12

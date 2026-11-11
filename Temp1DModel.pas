@@ -44,6 +44,9 @@ const
     (Name: 'Wasser';       Diffusivity: 0.14)
   );
 
+{ Liest eine Zahl mit Dezimalkomma oder -punkt ("1,5" und "1.5"). }
+function TryParseNumber(const S: string; out Value: Double): Boolean;
+
 type
   THeatModel1D = class
   private
@@ -86,7 +89,17 @@ type
 implementation
 
 uses
-  Math;
+  SysUtils, Math;
+
+function TryParseNumber(const S: string; out Value: Double): Boolean;
+var
+  FS: TFormatSettings;
+begin
+  FS := FormatSettings;
+  FS.DecimalSeparator := '.';
+  FS.ThousandSeparator := #0;
+  Result := TryStrToFloat(StringReplace(Trim(S), ',', '.', [rfReplaceAll]), Value, FS);
+end;
 
 constructor THeatModel1D.Create;
 begin

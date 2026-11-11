@@ -106,6 +106,13 @@ begin
       MaxDiff := Max(MaxDiff, Abs(M[i] - (30 - 10 * i / 5)));
     Check(MaxDiff < 1E-6, 'konstanter Rand -> lineares Profil 30..20 °C');
 
+    // Zahleneingabe mit Komma oder Punkt
+    Check(TryParseNumber('1,5', Sum) and SameValue(Sum, 1.5, 1E-12), 'TryParseNumber "1,5"');
+    Check(TryParseNumber(' 0.33 ', Sum) and SameValue(Sum, 0.33, 1E-12), 'TryParseNumber " 0.33 "');
+    Check(TryParseNumber('-2', Sum) and SameValue(Sum, -2, 1E-12), 'TryParseNumber "-2"');
+    Check(not TryParseNumber('abc', Sum), 'TryParseNumber "abc" ungültig');
+    Check(not TryParseNumber('', Sum), 'TryParseNumber "" ungültig');
+
     // Knotenzahl wird begrenzt
     M.NodeCount := 100;
     Check(M.NodeCount = MaxNodes, 'NodeCount auf MaxNodes begrenzt');
