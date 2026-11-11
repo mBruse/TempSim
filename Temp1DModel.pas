@@ -152,13 +152,13 @@ constructor THeatModel1D.Create;
 begin
   inherited Create;
   Diffusivity := MaterialDiffusivity(Materials[DefaultMaterial]) / 1E6;
-  Dx := 0.01;
+  Dx := 0.05;
   Dt := 60;
   TInit := 20;
   Amplitude := 5;
   Period := 24 * 3600;
   AutoSubstep := True;
-  NodeCount := 6;
+  NodeCount := 11;
 end;
 
 procedure THeatModel1D.SetNodeCount(Value: Integer);

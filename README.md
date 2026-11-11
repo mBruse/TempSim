@@ -27,6 +27,11 @@ der letzte Knoten bleibt konstant auf `Tinit`.
   (Thermoisoplethendiagramm: Farbflächen und Isolinien, Zeit auf der x-Achse,
   Tiefe auf der y-Achse nach unten), **Info**.
 * **Start** setzt zurück und rechnet, **Weiter** rechnet ab dem aktuellen Zustand.
+  Eine Änderung von Knotenzahl oder dx passt Gitter und Diagramme sofort an und
+  verwirft den bisherigen Lauf.
+* Standardgitter: 11 Knoten × 5 cm = 50 cm. Das Gitter sollte einige
+  Dämpfungstiefen d = √(a·P/π) tief sein (Tagesgang in feuchtem Sand: d ≈ 14 cm),
+  sonst erzwingt der feste untere Rand ein fast lineares Profil.
   Die Zeitreihen lassen sich als CSV exportieren.
 
 ## Stoffwerte

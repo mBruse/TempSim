@@ -46,6 +46,23 @@ begin
   Result := T[Node];
 end;
 
+{ Halbe Schwankungsbreite eines Knotens über den nächsten Tag. }
+function AmplitudeOverDay(M: THeatModel1D; Node: Integer): Double;
+var
+  k: Integer;
+  Lo, Hi: Double;
+begin
+  Lo := M[Node];
+  Hi := Lo;
+  for k := 1 to Round(M.Period / M.Dt) do
+  begin
+    M.Step;
+    Lo := Min(Lo, M[Node]);
+    Hi := Max(Hi, M[Node]);
+  end;
+  Result := (Hi - Lo) / 2;
+end;
+
 var
   M: THeatModel1D;
   i, k: Integer;
@@ -82,6 +99,8 @@ begin
     // Periode 2 h
     M.Diffusivity := 0.33E-6;
     M.Period := 2 * 3600;
+    M.Dx := 0.01;
+    M.NodeCount := 6;
     Check(Abs(M.FourierNumber - 0.198) < 1E-9, 'Fourier-Zahl Originalwerte = 0.198');
 
     // Vergleich mit dem Originalalgorithmus (Unterschied nur durch Single/Double
@@ -135,6 +154,25 @@ begin
     Check(TryParseNumber('-2', Sum) and SameValue(Sum, -2, 1E-12), 'TryParseNumber "-2"');
     Check(not TryParseNumber('abc', Sum), 'TryParseNumber "abc" ungültig');
     Check(not TryParseNumber('', Sum), 'TryParseNumber "" ungültig');
+
+    // Analytische Lösung für den periodisch erwärmten Halbraum:
+    // Amplitude A*exp(-z/d), d = sqrt(a*P/pi). Feuchter Sand, Tagesgang,
+    // Gitter 1 m tief, ausgewertet am 6. Tag (eingeschwungen).
+    M.Diffusivity := MaterialDiffusivity(Materials[DefaultMaterial]) / 1E6;
+    M.Period := 24 * 3600;
+    M.Amplitude := 5;
+    M.Dt := 60;
+    M.Dx := 0.05;
+    M.NodeCount := 21;
+    for k := 1 to 5 * 1440 do M.Step;
+    MaxDiff := 0;
+    for i := 1 to 6 do
+    begin
+      Sum := 5 * Exp(-M.NodeDepth(i) / Sqrt(M.Diffusivity * M.Period / Pi));
+      // Amplitude über einen Tag aus Minimum/Maximum
+      MaxDiff := Max(MaxDiff, Abs(Sum - AmplitudeOverDay(M, i)));
+    end;
+    Check(MaxDiff < 0.05, Format('Dämpfung wie analytische Lösung (max. Abw. %.3f K)', [MaxDiff]));
 
     // Knotenzahl wird begrenzt
     M.NodeCount := 100;

@@ -96,6 +96,7 @@ type
     procedure FillInfoText;
     procedure ReadParams;
     procedure BuildSeries;
+    procedure ResetGrid;
     procedure AddTimePoints;
     procedure RunSteps(Count: Integer);
     function ModelDiverged: Boolean;
@@ -198,8 +199,8 @@ begin
     cbMaterial.ItemIndex := DefaultMaterial;
 
     SetupField(edTlf, MaterialDiffusivity(Materials[DefaultMaterial]), 0.001, 1000, 3);
-    SetupField(edNodes, 6, MinNodes, MaxNodes, 0);
-    SetupField(edDx, 1, 0.1, 100, 2);
+    SetupField(edNodes, 11, MinNodes, MaxNodes, 0);
+    SetupField(edDx, 5, 0.1, 100, 2);
     SetupField(edTinit, 20, -50, 100, 1);
     SetupField(edAmplitude, 5, 0, 50, 1);
     SetupField(edPeriod, 24, 0.1, 24, 2);
@@ -381,6 +382,13 @@ begin
     L.Add('   T(N-1) = Tinit');
     L.Add('Zu Beginn haben alle inneren Knoten die Temperatur Tinit.');
     L.Add('');
+    L.Add('Dämpfungstiefe:');
+    L.Add('   Eine periodische Temperaturwelle (Periode P) fällt im Boden mit der');
+    L.Add('   Tiefe z wie A · exp(−z/d) ab und verspätet sich um z/d · P/(2π),');
+    L.Add('   mit d = √(a · P / π). Für einen Tagesgang in feuchtem Sand ist d ≈ 14 cm.');
+    L.Add('   Das Gitter sollte einige d tief sein, sonst erzwingt der feste untere');
+    L.Add('   Rand ein fast lineares Profil und alle Materialien sehen gleich aus.');
+    L.Add('');
     L.Add('Stabilität:');
     L.Add('   Das explizite Verfahren ist nur für r ≤ 0,5 stabil. Bei größeren Werten');
     L.Add('   wachsen Rundungsfehler exponentiell und die Lösung „explodiert“.');
@@ -391,7 +399,9 @@ begin
     L.Add('Bedienung:');
     L.Add('   Start  – setzt das Modell zurück und rechnet die angegebene Schrittzahl.');
     L.Add('   Weiter – rechnet ab dem aktuellen Zustand weiter (geänderte Parameter');
-    L.Add('            werden übernommen; eine geänderte Knotenzahl startet neu).');
+    L.Add('            werden übernommen).');
+    L.Add('   Knotenzahl oder dx ändern – Gitter, Schema und Diagramme passen sich');
+    L.Add('            sofort an; der bisherige Lauf wird verworfen, danach „Start“.');
     L.Add('   Tiefenprofil – aktueller Verlauf sowie Minimum/Maximum je Knoten:');
     L.Add('            zeigt die Dämpfung der Temperaturwelle mit der Tiefe.');
     L.Add('   Isoplethen – Temperatur als Farbfläche über Zeit (x) und Tiefe (y,');
@@ -439,6 +449,17 @@ begin
     S.XValues.Order := loAscending;
     FTimeSeries[i] := S;
   end;
+end;
+
+procedure TfrmTemp1D.ResetGrid;
+begin
+  // Ein auf dem alten Gitter gerechneter Lauf passt nicht zum neuen Gitter:
+  // Modell zurücksetzen, Diagramme leeren, "Weiter" erst nach "Start"
+  FModel.NodeCount := FieldInt(edNodes);
+  FModel.Reset;
+  BuildSeries;
+  FStarted := False;
+  UpdateButtons;
 end;
 
 procedure TfrmTemp1D.AddTimePoints;
@@ -674,10 +695,16 @@ begin
 end;
 
 procedure TfrmTemp1D.ParamChanged(Sender: TObject);
+var
+  OldDx: Double;
 begin
   if FUpdating or (FModel = nil) then
     Exit;
+  OldDx := FModel.Dx;
   ReadParams;
+  // Neue Knotenzahl oder neuer Abstand: Gitter sofort anpassen
+  if (FieldInt(edNodes) <> FModel.NodeCount) or not SameValue(OldDx, FModel.Dx) then
+    ResetGrid;
   UpdateProfile;
   UpdateStability;
   UpdateStatus;
