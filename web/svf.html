@@ -1,0 +1,728 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Sky View Factor</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;600&display=swap">
+<style>
+/* Layout: Kopfzeile, links Einstellungen, rechts zwei Karten (Gebäudehöhen | SVF) nebeneinander,
+   darunter Himmelsansicht am Punkt und Kennzahlen. Neutrale Flächen wie in Temperatur1D;
+   Farbe gehört den Karten: Blau = Himmel (SVF), Orange = Gebäudehöhe. */
+:root {
+  --bg: #f3f5f8;
+  --surface: #ffffff;
+  --surface-2: #eef1f5;
+  --ink: #17212b;
+  --ink-2: #44505d;
+  --muted: #6b7682;
+  --line: #dde2e9;
+  --accent: #1d5fae;
+  --accent-ink: #ffffff;
+  --err: #c21f1f;
+  --ground: #e4e8ee;   /* unbebauter Boden in der Höhenkarte */
+  --mask: #aab3be;     /* abgedeckte Gebäude in der SVF-Karte */
+  --font-display: "Space Grotesk", "Segoe UI", system-ui, sans-serif;
+  --font-body: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-data: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  --radius: 10px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e1319; --surface: #151c24; --surface-2: #1c252f; --ink: #e5eaf0; --ink-2: #b9c3ce;
+    --muted: #8b97a4; --line: #2a3440; --accent: #6ea6ec; --accent-ink: #0e1319; --err: #f07070;
+    --ground: #232d38; --mask: #56616e;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e1319; --surface: #151c24; --surface-2: #1c252f; --ink: #e5eaf0; --ink-2: #b9c3ce;
+  --muted: #8b97a4; --line: #2a3440; --accent: #6ea6ec; --accent-ink: #0e1319; --err: #f07070;
+  --ground: #232d38; --mask: #56616e;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { margin: 0; }
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font: 14px/1.5 var(--font-body);
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 16px 24px;
+}
+h1, h2, h3 { font-family: var(--font-display); font-weight: 600; text-wrap: balance; margin: 0; }
+button, input { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.app { max-width: 1440px; margin: 0 auto; display: grid; gap: 16px; }
+
+/* Kopfzeile */
+.top { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px 24px; }
+.brand { min-width: 0; }
+.brand h1 { font-size: 26px; letter-spacing: -0.01em; }
+.brand p { margin: 2px 0 0; color: var(--muted); max-width: 68ch; }
+.btn {
+  border: 1px solid var(--line); background: var(--surface); color: var(--ink);
+  border-radius: 8px; padding: 8px 16px; font-weight: 500; cursor: pointer;
+}
+.btn:hover { border-color: var(--accent); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+
+.layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; }
+@media (min-width: 980px) { .layout { grid-template-columns: 312px minmax(0, 1fr); align-items: start; } }
+
+/* Einstellungen */
+.panel {
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+  padding: 16px; display: grid; gap: 16px;
+}
+fieldset { border: 0; margin: 0; padding: 0; display: grid; gap: 8px; min-width: 0; }
+legend {
+  padding: 0; margin-bottom: 4px; font-size: 11px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: .08em; color: var(--muted);
+}
+.row { display: grid; grid-template-columns: minmax(0, 1fr) 96px; align-items: center; gap: 8px; }
+.row label { color: var(--ink-2); }
+.row .unit { color: var(--muted); }
+input[type="text"] {
+  width: 100%; min-width: 0; background: var(--surface-2); border: 1px solid var(--line);
+  border-radius: 6px; padding: 6px 8px; text-align: right;
+  font-family: var(--font-data); font-variant-numeric: tabular-nums;
+}
+input.invalid { border-color: var(--err); color: var(--err); }
+.note { font-family: var(--font-data); font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.check { display: flex; gap: 8px; align-items: center; color: var(--ink-2); }
+.check input { width: 16px; height: 16px; accent-color: var(--accent); flex: none; }
+
+/* Hauptbereich */
+main { display: grid; gap: 12px; min-width: 0; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); min-width: 0; padding: 14px 16px 16px; display: grid; gap: 10px; align-content: start; }
+.card-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 2px 16px; }
+.card-head h2 { font-size: 16px; }
+.card-head span { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+
+.maps { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
+@media (min-width: 720px) { .maps { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.chart { position: relative; min-width: 0; }
+.chart canvas {
+  display: block; width: 100%; aspect-ratio: 1 / 1; max-width: 100%;
+  background: var(--surface-2); border: 1px solid var(--line); border-radius: 4px; cursor: crosshair;
+}
+
+/* Farbskala und Maßstab unter jeder Karte */
+.mapfoot { display: grid; gap: 10px; }
+.cbar { display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: 10px; align-items: start; max-width: 420px; }
+.cbar-title { font-size: 12px; color: var(--ink-2); line-height: 12px; white-space: nowrap; }
+.cbar-grad { height: 12px; border-radius: 3px; border: 1px solid var(--line); }
+.cbar-ticks { grid-column: 2; position: relative; height: 16px; margin-top: 3px; font: 11px var(--font-data); color: var(--muted); font-variant-numeric: tabular-nums; }
+.cbar-ticks span { position: absolute; top: 0; white-space: nowrap; }
+.scale { display: flex; align-items: center; gap: 8px; font: 11px var(--font-data); color: var(--muted); }
+.scale-bar { height: 6px; border: 1px solid var(--ink-2); border-top: 0; flex: none; }
+.scale .north { margin-left: auto; font-family: var(--font-body); }
+.swatch { display: inline-block; width: 10px; height: 10px; border-radius: 2px; border: 1px solid var(--line); vertical-align: -1px; margin-right: 4px; }
+.sw-ground { background: var(--ground); }
+.sw-mask { background: var(--mask); }
+
+.tooltip {
+  position: absolute; pointer-events: none; background: var(--surface); border: 1px solid var(--line);
+  border-radius: 8px; padding: 8px 10px; font-size: 12px; box-shadow: 0 4px 16px rgb(0 0 0 / .12);
+  min-width: 150px; z-index: 5; white-space: nowrap;
+}
+.tooltip .tt-title { color: var(--muted); margin-bottom: 4px; font-variant-numeric: tabular-nums; }
+.tooltip .tt-row { display: flex; justify-content: space-between; gap: 16px; }
+.tooltip .tt-row span { color: var(--ink-2); }
+.tooltip .tt-row b { font-family: var(--font-data); font-weight: 500; font-variant-numeric: tabular-nums; }
+
+/* Punkt und Kennzahlen */
+.lower { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
+@media (min-width: 720px) { .lower { grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); } }
+.point { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px 20px; align-items: center; }
+@media (min-width: 520px) { .point { grid-template-columns: 220px minmax(0, 1fr); } }
+#cvSky { display: block; width: 100%; max-width: 220px; aspect-ratio: 1 / 1; margin: 0 auto; }
+dl.kv { margin: 0; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 16px; }
+dl.kv dt { color: var(--ink-2); }
+dl.kv dd { margin: 0; text-align: right; font-family: var(--font-data); font-variant-numeric: tabular-nums; }
+.hint { margin: 0; color: var(--muted); font-size: 12px; }
+
+details.info { color: var(--ink-2); }
+details.info summary { cursor: pointer; font-family: var(--font-display); font-weight: 600; color: var(--ink); font-size: 15px; }
+details.info .body { display: grid; gap: 10px; max-width: 72ch; margin-top: 10px; }
+details.info p { margin: 0; }
+.formula { font-family: var(--font-data); background: var(--surface-2); border-radius: 6px; padding: 8px 12px; color: var(--ink); overflow-x: auto; white-space: nowrap; }
+
+.status {
+  display: flex; flex-wrap: wrap; gap: 4px 24px; color: var(--muted); font-size: 12px;
+  font-family: var(--font-data); font-variant-numeric: tabular-nums;
+}
+.status b { color: var(--ink-2); font-weight: 500; }
+
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <div class="brand">
+      <h1>Sky View Factor</h1>
+      <p>Zufällige Gebäude auf einem Raster. Für jede Zelle bestimmt ein Raytracing in 360 Richtungen (1° Azimut), welcher Anteil des Himmels sichtbar ist: 0 = kein Himmel, 1 = freier Himmel.</p>
+    </div>
+    <button class="btn primary" id="btNew" type="button">Neue Stadt</button>
+  </header>
+
+  <div class="layout">
+    <aside class="panel" aria-label="Einstellungen">
+      <fieldset>
+        <legend>Raster</legend>
+        <div class="row"><label for="fN">Zellen je Seite</label><input type="text" inputmode="numeric" id="fN"></div>
+        <div class="row"><label for="fCell">Zellgröße <span class="unit">(m)</span></label><input type="text" inputmode="decimal" id="fCell"></div>
+        <div class="note" id="gridNote"></div>
+      </fieldset>
+      <fieldset>
+        <legend>Gebäude</legend>
+        <div class="row"><label for="fCover">Überbauter Anteil <span class="unit">(%)</span></label><input type="text" inputmode="decimal" id="fCover"></div>
+        <div class="row"><label for="fSMin">Kantenlänge min <span class="unit">(m)</span></label><input type="text" inputmode="decimal" id="fSMin"></div>
+        <div class="row"><label for="fSMax">Kantenlänge max <span class="unit">(m)</span></label><input type="text" inputmode="decimal" id="fSMax"></div>
+        <div class="row"><label for="fHMin">Höhe min <span class="unit">(m)</span></label><input type="text" inputmode="decimal" id="fHMin"></div>
+        <div class="row"><label for="fHMax">Höhe max <span class="unit">(m)</span></label><input type="text" inputmode="decimal" id="fHMax"></div>
+        <div class="row"><label for="fSeed">Startwert Zufall</label><input type="text" inputmode="numeric" id="fSeed"></div>
+      </fieldset>
+      <fieldset>
+        <legend>Darstellung</legend>
+        <label class="check"><input type="checkbox" id="fMask"> Gebäude in der SVF-Karte abdecken</label>
+      </fieldset>
+    </aside>
+
+    <main>
+      <div class="maps">
+        <section class="card" aria-label="Gebäudehöhen">
+          <div class="card-head"><h2>Gebäudehöhen</h2><span id="headHeights"></span></div>
+          <div class="chart"><canvas id="cvHeights" role="img" aria-label="Karte der Gebäudehöhen"></canvas><div class="tooltip" id="ttHeights" hidden></div></div>
+          <div class="mapfoot">
+            <div class="cbar"><span class="cbar-title">Höhe (m)</span><div class="cbar-grad" id="gradHeights"></div><div class="cbar-ticks" id="ticksHeights"></div></div>
+            <div class="scale"><div class="scale-bar" id="scaleHeights"></div><span id="scaleHeightsLabel"></span><span><span class="swatch sw-ground"></span>Boden</span><span class="north">Norden oben</span></div>
+          </div>
+        </section>
+        <section class="card" aria-label="Sky View Factor">
+          <div class="card-head"><h2>Sky View Factor</h2><span id="headSvf" role="status"></span></div>
+          <div class="chart"><canvas id="cvSvf" role="img" aria-label="Karte des Sky View Factor"></canvas><div class="tooltip" id="ttSvf" hidden></div></div>
+          <div class="mapfoot">
+            <div class="cbar"><span class="cbar-title">SVF</span><div class="cbar-grad" id="gradSvf"></div><div class="cbar-ticks" id="ticksSvf"></div></div>
+            <div class="scale"><div class="scale-bar" id="scaleSvf"></div><span id="scaleSvfLabel"></span><span id="maskKey" hidden><span class="swatch sw-mask"></span>Gebäude</span><span class="north">Norden oben</span></div>
+          </div>
+        </section>
+      </div>
+
+      <div class="lower">
+        <section class="card" aria-label="Himmelsansicht am Punkt">
+          <div class="card-head"><h2>Himmelsansicht am Punkt</h2><span id="pointMode"></span></div>
+          <div class="point">
+            <canvas id="cvSky" role="img" aria-label="Horizontlinie des gewählten Punkts in Polardarstellung"></canvas>
+            <div style="display:grid;gap:10px;min-width:0">
+              <dl class="kv" id="pointValues"></dl>
+              <p class="hint">Zenit in der Mitte, Horizont am Rand, Norden oben wie in der Karte. Dunkel = von Gebäuden verdeckt. Zeigen wählt einen Punkt, Klicken hält ihn fest.</p>
+            </div>
+          </div>
+        </section>
+        <section class="card" aria-label="Kennzahlen">
+          <div class="card-head"><h2>Kennzahlen</h2></div>
+          <dl class="kv" id="stats"></dl>
+        </section>
+      </div>
+
+      <section class="card">
+        <details class="info">
+          <summary>Verfahren</summary>
+          <div class="body">
+            <p>Jede Zelle trägt eine Höhe: 0 m für Boden, sonst die Dachhöhe. Gebäude sind zufällig platzierte Rechtecke mit zufälliger Höhe; wo sie sich überlappen, gilt die größere Höhe.</p>
+            <p>Vom Mittelpunkt jeder Zelle läuft in 360 Richtungen (Azimut 0,5°, 1,5°, … 359,5°) ein Strahl durch das Raster. Er besucht jede Zelle, die er schneidet, und merkt sich den größten Höhenwinkel β, unter dem eine höhere Zelle erscheint: tan β = (h − h₀) / Abstand. Der Strahl endet am Rasterrand oder sobald auch das höchste Gebäude den Horizont nicht mehr anheben könnte.</p>
+            <p>Aus den 360 Horizontwinkeln folgt der Sky View Factor einer waagerechten Fläche bei gleichmäßig hellem Himmel:</p>
+            <div class="formula">SVF = (1/360) · Σ cos² βᵢ</div>
+            <p>Auf Dächern wird in Dachhöhe gerechnet, dort verdecken nur höhere Nachbarn den Himmel. Außerhalb des Rasters ist das Gelände frei, Zellen am Rand sehen deshalb etwas mehr Himmel.</p>
+          </div>
+        </details>
+      </section>
+
+      <div class="status" id="status" aria-live="polite"></div>
+    </main>
+  </div>
+</div>
+
+<script>
+"use strict";
+
+/* ---------- Rechenkern (läuft im Hauptthread und, per toString, in den Workern) ---------- */
+
+// Strahlrichtungen: Azimut im Uhrzeigersinn ab Norden, Mitte jedes Sektors. Bildkoordinaten: x nach Osten, y nach Süden.
+function makeDirs(nAz) {
+  const sx = new Int8Array(nAz), sy = new Int8Array(nAz), tdx = new Float64Array(nAz), tdy = new Float64Array(nAz);
+  for (let k = 0; k < nAz; k++) {
+    const a = (k + 0.5) * 2 * Math.PI / nAz, dx = Math.sin(a), dy = -Math.cos(a);
+    sx[k] = dx > 0 ? 1 : -1; sy[k] = dy > 0 ? 1 : -1;
+    tdx[k] = 1 / Math.abs(dx); tdy[k] = 1 / Math.abs(dy);
+  }
+  return { n: nAz, sx, sy, tdx, tdy };
+}
+
+// Ein Strahl ab Zellmitte (x, y): Gitterdurchlauf Zelle für Zelle (DDA). hc = Höhen in Zelleinheiten,
+// h0 = Höhe des Startpunkts, hrel = höchstes Gebäude − h0. Rückgabe: tan des Horizontwinkels (>= 0).
+function rayTan(hc, n, x, y, h0, hrel, sx, sy, tdx, tdy) {
+  let tx = 0.5 * tdx, ty = 0.5 * tdy, t, m = 0;
+  for (;;) {
+    if (tx < ty) { t = tx; tx += tdx; x += sx; if (x < 0 || x >= n) break; }
+    else { t = ty; ty += tdy; y += sy; if (y < 0 || y >= n) break; }
+    if (hrel <= m * t) break;               // nichts dahinter kann den Horizont noch anheben
+    const dh = hc[y * n + x] - h0;
+    if (dh > m * t) m = dh / t;             // t = Abstand bis zum Eintritt in die Zelle
+  }
+  return m;
+}
+
+// SVF für die Zeilen y0..y1-1, Ergebnis zeilenweise in out.
+function svfRows(hc, n, y0, y1, hmax, D, out) {
+  const nAz = D.n;
+  for (let y = y0, o = 0; y < y1; y++) for (let x = 0; x < n; x++, o++) {
+    const h0 = hc[y * n + x], hrel = hmax - h0;
+    if (hrel <= 0) { out[o] = 1; continue; }
+    let s = 0;
+    for (let k = 0; k < nAz; k++) {
+      const m = rayTan(hc, n, x, y, h0, hrel, D.sx[k], D.sy[k], D.tdx[k], D.tdy[k]);
+      s += 1 / (1 + m * m);                 // cos² β
+    }
+    out[o] = s / nAz;
+  }
+}
+
+const N_AZ = 360;
+const DIRS = makeDirs(N_AZ);
+const WORKER_SRC = `"use strict";
+${makeDirs}
+${rayTan}
+${svfRows}
+let hc, n, hmax, D;
+onmessage = e => {
+  const m = e.data;
+  if (m.hc) { hc = m.hc; n = m.n; hmax = m.hmax; D = makeDirs(m.nAz); return; }
+  const out = new Float32Array((m.y1 - m.y0) * n);
+  svfRows(hc, n, m.y0, m.y1, hmax, D, out);
+  postMessage({ y0: m.y0, y1: m.y1, out }, [out.buffer]);
+};`;
+
+/* ---------- Zufällige Bebauung ---------- */
+function mulberry32(a) {
+  return () => {
+    a |= 0; a = a + 0x6D2B79F5 | 0;
+    let t = Math.imul(a ^ a >>> 15, 1 | a);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+// Rechtecke setzen, bis der überbaute Anteil erreicht ist. Höhen in m, auf 0,5 m gerundet.
+function generateCity(p) {
+  const n = p.n, rnd = mulberry32(p.seed), h = new Float32Array(n * n), target = p.cover * n * n;
+  const side = () => Math.min(n, Math.max(1, Math.round((p.sMin + rnd() * (p.sMax - p.sMin)) / p.cell)));
+  let covered = 0, count = 0, hmax = 0;
+  for (let tries = 0; tries < 100000 && covered < target; tries++) {
+    const w = side(), d = side();
+    const x0 = Math.floor(rnd() * (n - w + 1)), y0 = Math.floor(rnd() * (n - d + 1));
+    const hh = Math.max(0.5, Math.round((p.hMin + rnd() * (p.hMax - p.hMin)) * 2) / 2);
+    for (let y = y0; y < y0 + d; y++) for (let x = x0; x < x0 + w; x++) {
+      const i = y * n + x;
+      if (h[i] === 0) covered++;
+      if (hh > h[i]) h[i] = hh;
+    }
+    if (hh > hmax) hmax = hh;
+    count++;
+  }
+  const hc = new Float32Array(n * n);
+  for (let i = 0; i < hc.length; i++) hc[i] = h[i] / p.cell;
+  return { n, cell: p.cell, h, hc, hmax, hmaxC: hmax / p.cell, count, cover: covered / (n * n) };
+}
+
+/* ---------- Farben ---------- */
+function hexToRgb(h) { const n = parseInt(h.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; }
+function rampRgb(stops, f) {
+  f = Math.min(1, Math.max(0, f));
+  const p = f * (stops.length - 1), k = Math.min(Math.floor(p), stops.length - 2), g = p - k;
+  return [0, 1, 2].map(i => Math.round(stops[k][i] + (stops[k + 1][i] - stops[k][i]) * g));
+}
+const rgbStr = c => `rgb(${c[0]},${c[1]},${c[2]})`;
+// SVF: ein Farbton, dunkel = kein Himmel, hell = freier Himmel (in beiden Themen gleich, wie ein Luftbild)
+const SVF_RAMP = ["#06142b", "#0d366b", "#184f95", "#256abf", "#3987e5", "#6da7ec", "#9ec5f4", "#cde2fb", "#f3f8ff"].map(hexToRgb);
+// Gebäudehöhe: ein Farbton, niedrig liegt nah am Boden-Ton des jeweiligen Themas
+const HEIGHT_LIGHT = ["#f8c9aa", "#f1976a", "#e0672f", "#b0461a", "#6e2609"].map(hexToRgb);
+const HEIGHT_DARK = HEIGHT_LIGHT.slice().reverse();
+const SKY_OPEN = hexToRgb("#b7d3f6"), SKY_BLOCKED = hexToRgb("#0d366b");
+
+function lut(stops) {
+  const t = new Uint8Array(256 * 3);
+  for (let i = 0; i < 256; i++) t.set(rampRgb(stops, i / 255), i * 3);
+  return t;
+}
+const SVF_LUT = lut(SVF_RAMP);
+function gradientCss(stops) {
+  return `linear-gradient(to right, ${stops.map((c, i) => `${rgbStr(c)} ${(100 * i / (stops.length - 1)).toFixed(1)}%`).join(", ")})`;
+}
+function isDark() {
+  const t = document.documentElement.getAttribute("data-theme");
+  if (t === "dark") return true;
+  if (t === "light") return false;
+  return matchMedia("(prefers-color-scheme: dark)").matches;
+}
+function css(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+
+/* ---------- Zahlen ---------- */
+const fmt = (v, dec = 2, fixed = false) => {
+  if (!Number.isFinite(v)) return "–";
+  return v.toLocaleString("de-DE", { maximumFractionDigits: dec, minimumFractionDigits: fixed ? dec : 0, useGrouping: false });
+};
+const fmtInt = v => Math.round(v).toLocaleString("de-DE");
+function parseNumber(s) {
+  s = String(s).trim().replace(",", ".");
+  if (s === "" || !/^[-+]?(\d+\.?\d*|\.\d+)$/.test(s)) return NaN;
+  return Number(s);
+}
+
+/* ---------- Eingabefelder ---------- */
+const FIELDS = {
+  fN:     { min: 20,  max: 600,   dec: 0, def: 200 },
+  fCell:  { min: 0.5, max: 20,    dec: 1, def: 2 },
+  fCover: { min: 0,   max: 80,    dec: 0, def: 30 },
+  fSMin:  { min: 1,   max: 500,   dec: 0, def: 10 },
+  fSMax:  { min: 1,   max: 500,   dec: 0, def: 40 },
+  fHMin:  { min: 1,   max: 400,   dec: 0, def: 5 },
+  fHMax:  { min: 1,   max: 400,   dec: 0, def: 50 },
+  fSeed:  { min: 1,   max: 999999, dec: 0, def: 7 }
+};
+const $ = id => document.getElementById(id);
+function fieldValue(id) {
+  const f = FIELDS[id], el = $(id), v = parseNumber(el.value);
+  const valid = Number.isFinite(v) && v >= f.min && v <= f.max;
+  el.classList.toggle("invalid", !valid);
+  el.setAttribute("aria-invalid", String(!valid));
+  const out = Number.isFinite(v) ? Math.min(f.max, Math.max(f.min, v)) : f.def;
+  return f.dec === 0 ? Math.round(out) : out;
+}
+function setField(id, v) { $(id).value = fmt(v, FIELDS[id].dec); $(id).classList.remove("invalid"); }
+function readParams() {
+  const s1 = fieldValue("fSMin"), s2 = fieldValue("fSMax"), h1 = fieldValue("fHMin"), h2 = fieldValue("fHMax");
+  return {
+    n: fieldValue("fN"), cell: fieldValue("fCell"), cover: fieldValue("fCover") / 100,
+    sMin: Math.min(s1, s2), sMax: Math.max(s1, s2), hMin: Math.min(h1, h2), hMax: Math.max(h1, h2),
+    seed: fieldValue("fSeed")
+  };
+}
+
+/* ---------- Zustand ---------- */
+let city = null;          // Bebauung
+let svf = null;           // Float32Array n*n, NaN = noch nicht berechnet
+let pinned = null;        // festgehaltene Zelle {x, y}
+let hover = null;         // Zelle unter dem Zeiger
+let run = { id: 0, workers: [] };
+const offHeights = document.createElement("canvas"), offSvf = document.createElement("canvas");
+let imgSvf = null;
+
+/* ---------- Bilder der beiden Karten (1 Pixel je Zelle) ---------- */
+function paintHeights() {
+  const n = city.n, ctx = offHeights.getContext("2d"), img = ctx.createImageData(n, n), d = img.data;
+  const ground = hexToRgb(css("--ground")), table = lut(isDark() ? HEIGHT_DARK : HEIGHT_LIGHT);
+  for (let i = 0, o = 0; i < n * n; i++, o += 4) {
+    const h = city.h[i];
+    if (h === 0) { d[o] = ground[0]; d[o + 1] = ground[1]; d[o + 2] = ground[2]; }
+    else { const k = Math.round(255 * h / city.hmax) * 3; d[o] = table[k]; d[o + 1] = table[k + 1]; d[o + 2] = table[k + 2]; }
+    d[o + 3] = 255;
+  }
+  ctx.putImageData(img, 0, 0);
+}
+function paintSvfRows(y0, y1) {
+  const n = city.n, d = imgSvf.data, masked = $("fMask").checked, mask = hexToRgb(css("--mask"));
+  for (let i = y0 * n, o = i * 4; i < y1 * n; i++, o += 4) {
+    const v = svf[i];
+    if (v !== v) { d[o + 3] = 0; continue; }
+    if (masked && city.h[i] > 0) { d[o] = mask[0]; d[o + 1] = mask[1]; d[o + 2] = mask[2]; }
+    else { const k = Math.round(255 * v) * 3; d[o] = SVF_LUT[k]; d[o + 1] = SVF_LUT[k + 1]; d[o + 2] = SVF_LUT[k + 2]; }
+    d[o + 3] = 255;
+  }
+  offSvf.getContext("2d").putImageData(imgSvf, 0, 0, 0, y0, n, y1 - y0);
+}
+
+/* ---------- Zeichnen ---------- */
+let drawQueued = false;
+function requestDraw() {
+  if (drawQueued) return;
+  drawQueued = true;
+  requestAnimationFrame(() => { drawQueued = false; drawMap($("cvHeights"), offHeights); drawMap($("cvSvf"), offSvf); });
+}
+function drawMap(cv, off) {
+  const dpr = window.devicePixelRatio || 1, w = Math.max(1, Math.round(cv.clientWidth * dpr));
+  if (cv.width !== w || cv.height !== w) { cv.width = w; cv.height = w; }
+  const ctx = cv.getContext("2d"), n = city.n, s = w / n;
+  ctx.clearRect(0, 0, w, w);
+  ctx.imageSmoothingEnabled = s < 1;
+  ctx.drawImage(off, 0, 0, w, w);
+  const mark = (c, r, solid) => {
+    const px = (c.x + 0.5) * s, py = (c.y + 0.5) * s;
+    ctx.beginPath(); ctx.arc(px, py, r * dpr, 0, 2 * Math.PI);
+    ctx.lineWidth = 3.5 * dpr; ctx.strokeStyle = "rgba(10,16,24,.85)"; ctx.stroke();
+    ctx.lineWidth = 1.5 * dpr; ctx.strokeStyle = "#ffffff"; ctx.stroke();
+    if (solid) { ctx.beginPath(); ctx.arc(px, py, 1.5 * dpr, 0, 2 * Math.PI); ctx.fillStyle = "#ffffff"; ctx.fill(); }
+  };
+  if (pinned) mark(pinned, 6, true);
+  if (hover && !(pinned && hover.x === pinned.x && hover.y === pinned.y)) mark(hover, 4.5, false);
+}
+
+// Horizontwinkel am Punkt als Polardiagramm (abstandstreu: Radius ~ 90° − β)
+function drawSky(tans) {
+  const cv = $("cvSky"), dpr = window.devicePixelRatio || 1, w = Math.max(1, Math.round(cv.clientWidth * dpr));
+  if (cv.width !== w || cv.height !== w) { cv.width = w; cv.height = w; }
+  const ctx = cv.getContext("2d"), c = w / 2, pad = 16 * dpr, R = c - pad;
+  ctx.clearRect(0, 0, w, w);
+  ctx.beginPath(); ctx.arc(c, c, R, 0, 2 * Math.PI); ctx.fillStyle = rgbStr(SKY_OPEN); ctx.fill();
+  // verdeckter Ring: außen der Horizontkreis, innen die Horizontlinie in 1°-Sektoren
+  ctx.beginPath(); ctx.arc(c, c, R, 0, 2 * Math.PI);
+  const sector = 2 * Math.PI / tans.length;
+  for (let k = tans.length - 1; k >= 0; k--) {
+    const r = R * (1 - Math.atan(tans[k]) / (Math.PI / 2)), a0 = k * sector - Math.PI / 2;
+    ctx.arc(c, c, Math.max(0, r), a0 + sector, a0, true);
+  }
+  ctx.closePath(); ctx.fillStyle = rgbStr(SKY_BLOCKED); ctx.fill("evenodd");
+  // Höhenkreise 30° und 60°
+  ctx.lineWidth = dpr; ctx.strokeStyle = "rgba(255,255,255,.45)";
+  for (const el of [30, 60]) { ctx.beginPath(); ctx.arc(c, c, R * (1 - el / 90), 0, 2 * Math.PI); ctx.stroke(); }
+  ctx.beginPath(); ctx.arc(c, c, R, 0, 2 * Math.PI); ctx.strokeStyle = css("--line"); ctx.stroke();
+  ctx.fillStyle = css("--muted"); ctx.font = `${11 * dpr}px ${css("--font-data")}`; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+  ctx.fillText("N", c, pad / 2); ctx.fillText("S", c, w - pad / 2); ctx.fillText("O", w - pad / 2, c); ctx.fillText("W", pad / 2, c);
+}
+
+/* ---------- Punktauswertung ---------- */
+function horizonAt(x, y) {
+  const n = city.n, h0 = city.hc[y * n + x], hrel = city.hmaxC - h0, tans = new Float32Array(N_AZ);
+  if (hrel > 0) for (let k = 0; k < N_AZ; k++) tans[k] = rayTan(city.hc, n, x, y, h0, hrel, DIRS.sx[k], DIRS.sy[k], DIRS.tdx[k], DIRS.tdy[k]);
+  return tans;
+}
+const COMPASS = ["N", "NO", "O", "SO", "S", "SW", "W", "NW"];
+function kvHtml(rows) { return rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join(""); }
+function cellPos(c) { return { x: (c.x + 0.5) * city.cell, y: (city.n - c.y - 0.5) * city.cell }; }
+function updatePoint() {
+  const c = hover || pinned;
+  if (!c) return;
+  const tans = horizonAt(c.x, c.y), h = city.h[c.y * city.n + c.x], pos = cellPos(c);
+  let s = 0, sumB = 0, kMax = 0;
+  for (let k = 0; k < N_AZ; k++) { s += 1 / (1 + tans[k] * tans[k]); sumB += Math.atan(tans[k]); if (tans[k] > tans[kMax]) kMax = k; }
+  const deg = 180 / Math.PI, bMax = Math.atan(tans[kMax]) * deg;
+  $("pointMode").textContent = hover ? "unter dem Zeiger" : "festgehalten";
+  $("pointValues").innerHTML = kvHtml([
+    ["Position x / y", `${fmt(pos.x, 1)} m / ${fmt(pos.y, 1)} m`],
+    ["Fläche", h > 0 ? `Dach, ${fmt(h, 1)} m` : "Boden"],
+    ["Sky View Factor", fmt(s / N_AZ, 3, true)],
+    ["Mittlerer Horizontwinkel", `${fmt(sumB / N_AZ * deg, 1)}°`],
+    ["Höchstes Hindernis", bMax > 0 ? `${fmt(bMax, 1)}° in ${COMPASS[Math.round((kMax + 0.5) / 45) % 8]}` : "keins"]
+  ]);
+  drawSky(tans);
+}
+
+/* ---------- Kennzahlen ---------- */
+function updateStats(seconds, threads) {
+  const n = city.n, rows = [
+    ["Gebäude", fmtInt(city.count)],
+    ["Überbaut", `${fmt(city.cover * 100, 1)} %`],
+    ["Höchstes Gebäude", city.hmax > 0 ? `${fmt(city.hmax, 1)} m` : "–"]
+  ];
+  if (seconds != null) {
+    let sg = 0, ng = 0, sr = 0, nr = 0, min = 1;
+    for (let i = 0; i < n * n; i++) {
+      if (city.h[i] === 0) { sg += svf[i]; ng++; if (svf[i] < min) min = svf[i]; } else { sr += svf[i]; nr++; }
+    }
+    rows.push(["SVF Boden, Mittel", ng ? fmt(sg / ng, 3, true) : "–"], ["SVF Boden, Minimum", ng ? fmt(min, 3, true) : "–"],
+      ["SVF Dächer, Mittel", nr ? fmt(sr / nr, 3, true) : "–"]);
+    $("status").innerHTML = `<span><b>${fmtInt(n * n)}</b> Zellen</span><span><b>${fmtInt(n * n * N_AZ)}</b> Strahlen</span>` +
+      `<span><b>${fmt(seconds, 2)} s</b> Rechenzeit</span><span><b>${threads}</b> ${threads === 1 ? "Thread" : "Threads"}</span>`;
+  } else {
+    rows.push(["SVF Boden, Mittel", "…"], ["SVF Boden, Minimum", "…"], ["SVF Dächer, Mittel", "…"]);
+    $("status").textContent = "";
+  }
+  $("stats").innerHTML = kvHtml(rows);
+}
+
+/* ---------- Legenden ---------- */
+function setTicks(el, ticks) {
+  el.innerHTML = "";
+  ticks.forEach(([p, label], i) => {
+    const s = document.createElement("span");
+    s.textContent = label; s.style.left = `${p * 100}%`;
+    s.style.transform = i === 0 ? "none" : i === ticks.length - 1 ? "translateX(-100%)" : "translateX(-50%)";
+    el.appendChild(s);
+  });
+}
+function niceLength(max) {
+  const mag = Math.pow(10, Math.floor(Math.log10(max)));
+  for (const f of [5, 2, 1]) if (f * mag <= max) return f * mag;
+  return mag;
+}
+function updateLegends() {
+  $("gradSvf").style.background = gradientCss(SVF_RAMP);
+  setTicks($("ticksSvf"), [[0, "0"], [0.25, "0,25"], [0.5, "0,5"], [0.75, "0,75"], [1, "1"]]);
+  $("gradHeights").style.background = gradientCss(isDark() ? HEIGHT_DARK : HEIGHT_LIGHT);
+  const hm = city.hmax;
+  setTicks($("ticksHeights"), hm > 0 ? [[0, "0"], [0.5, fmt(hm / 2, 1)], [1, fmt(hm, 1)]] : [[0, "0"]]);
+  const size = city.n * city.cell, len = niceLength(size / 4), label = `${fmt(len, 1)} m`;
+  for (const id of ["scaleHeights", "scaleSvf"]) { $(id).style.width = `${100 * len / size}%`; $(id + "Label").textContent = label; }
+  $("maskKey").hidden = !$("fMask").checked;
+}
+
+/* ---------- Berechnung ---------- */
+function acceptRows(id, y0, y1, out) {
+  if (id !== run.id) return;
+  svf.set(out, y0 * city.n);
+  paintSvfRows(y0, y1);
+  run.done += y1 - y0;
+  requestDraw();
+  if (run.done >= city.n) finishRun();
+  else $("headSvf").textContent = `Raytracing ${Math.floor(100 * run.done / city.n)} %`;
+}
+function finishRun() {
+  const seconds = (performance.now() - run.t0) / 1000;
+  for (const w of run.workers) w.terminate();
+  run.workers = [];
+  $("headSvf").textContent = `${N_AZ} Strahlen je Zelle`;
+  updateStats(seconds, run.threads);
+}
+function runOnMainThread(id) {
+  const n = city.n, row = new Float32Array(n);
+  let y = run.next;
+  run.threads = 1;
+  const slice = () => {
+    if (id !== run.id) return;
+    const t = performance.now();
+    while (y < n && performance.now() - t < 30) { svfRows(city.hc, n, y, y + 1, city.hmaxC, DIRS, row); acceptRows(id, y, y + 1, row); y++; }
+    if (y < n && id === run.id) setTimeout(slice, 0);
+  };
+  slice();
+}
+let workerUrl = null;
+function startCompute() {
+  for (const w of run.workers) w.terminate();
+  const n = city.n, id = run.id + 1, rowsPerJob = Math.max(1, Math.min(8, Math.ceil(1000 / n)));
+  run = { id, workers: [], next: 0, done: 0, t0: performance.now(), threads: 1 };
+  $("headSvf").textContent = "Raytracing 0 %";
+  const feed = w => {
+    if (id !== run.id || run.next >= n) return;
+    const y0 = run.next, y1 = Math.min(n, y0 + rowsPerJob);
+    run.next = y1;
+    w.postMessage({ y0, y1 });
+  };
+  const count = Math.max(1, Math.min(8, (navigator.hardwareConcurrency || 4) - 1));
+  let fellBack = false;
+  const fallback = () => {
+    // Worker nicht verfügbar: im Hauptthread in kleinen Zeitscheiben weiterrechnen
+    if (fellBack || id !== run.id) return;
+    fellBack = true;
+    for (const w of run.workers) w.terminate();
+    run.workers = []; run.next = 0; run.done = 0;
+    runOnMainThread(id);
+  };
+  try {
+    if (!workerUrl) workerUrl = URL.createObjectURL(new Blob([WORKER_SRC], { type: "text/javascript" }));
+    for (let i = 0; i < count; i++) {
+      const w = new Worker(workerUrl);
+      w.onmessage = e => { acceptRows(id, e.data.y0, e.data.y1, e.data.out); feed(w); };
+      w.onerror = fallback;
+      w.postMessage({ hc: city.hc, n, hmax: city.hmaxC, nAz: N_AZ });
+      run.workers.push(w);
+    }
+    run.threads = count;
+    for (const w of run.workers) { feed(w); feed(w); }
+  } catch (err) { fallback(); }
+}
+
+function nearestGround(cx, cy) {
+  const n = city.n;
+  let best = null, bd = Infinity;
+  for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) {
+    if (city.h[y * n + x] !== 0) continue;
+    const d = (x - cx) * (x - cx) + (y - cy) * (y - cy);
+    if (d < bd) { bd = d; best = { x, y }; }
+  }
+  return best || { x: Math.floor(cx), y: Math.floor(cy) };
+}
+
+function rebuild() {
+  const p = readParams();
+  city = generateCity(p);
+  const n = city.n;
+  svf = new Float32Array(n * n).fill(NaN);
+  offHeights.width = offHeights.height = offSvf.width = offSvf.height = n;
+  imgSvf = offSvf.getContext("2d").createImageData(n, n);
+  hover = null;
+  pinned = nearestGround(n / 2, n / 2);
+  $("gridNote").textContent = `${fmt(n * city.cell, 1)} m × ${fmt(n * city.cell, 1)} m · ${fmtInt(n * n)} Zellen`;
+  $("headHeights").textContent = `${fmtInt(city.count)} Gebäude`;
+  paintHeights();
+  updateLegends();
+  updateStats(null);
+  updatePoint();
+  requestDraw();
+  startCompute();
+}
+function repaint() {            // Thema oder Darstellung geändert: Bilder aus den Daten neu aufbauen
+  if (!city) return;
+  paintHeights(); paintSvfRows(0, city.n); updateLegends(); updatePoint(); requestDraw();
+}
+
+/* ---------- Bedienung ---------- */
+function cellAt(cv, e) {
+  const r = cv.getBoundingClientRect(), n = city.n;
+  const x = Math.floor((e.clientX - r.left) / r.width * n), y = Math.floor((e.clientY - r.top) / r.height * n);
+  return x >= 0 && y >= 0 && x < n && y < n ? { x, y } : null;
+}
+function showTooltip(cv, tt, e, c) {
+  const i = c.y * city.n + c.x, h = city.h[i], v = svf[i], pos = cellPos(c);
+  tt.innerHTML = `<div class="tt-title">x ${fmt(pos.x, 1)} m · y ${fmt(pos.y, 1)} m</div>` +
+    `<div class="tt-row"><span>${h > 0 ? "Dach" : "Boden"}</span><b>${h > 0 ? fmt(h, 1) + " m" : "0 m"}</b></div>` +
+    `<div class="tt-row"><span>SVF</span><b>${v === v ? fmt(v, 3, true) : "…"}</b></div>`;
+  tt.hidden = false;
+  const r = cv.getBoundingClientRect(), px = e.clientX - r.left, py = e.clientY - r.top;
+  const left = px + 14 + tt.offsetWidth > r.width ? px - 14 - tt.offsetWidth : px + 14;
+  const top = py + 14 + tt.offsetHeight > r.height ? py - 14 - tt.offsetHeight : py + 14;
+  tt.style.left = `${Math.max(0, left)}px`; tt.style.top = `${Math.max(0, top)}px`;
+}
+function bindMap(cvId, ttId) {
+  const cv = $(cvId), tt = $(ttId);
+  cv.addEventListener("pointermove", e => {
+    const c = cellAt(cv, e);
+    if (!c) return;
+    hover = c; showTooltip(cv, tt, e, c); updatePoint(); requestDraw();
+  });
+  cv.addEventListener("pointerleave", () => { hover = null; tt.hidden = true; updatePoint(); requestDraw(); });
+  cv.addEventListener("pointerdown", e => {
+    const c = cellAt(cv, e);
+    if (!c) return;
+    pinned = c;
+    if (e.pointerType !== "mouse") { hover = null; showTooltip(cv, tt, e, c); }
+    updatePoint(); requestDraw();
+  });
+}
+
+function init() {
+  for (const id in FIELDS) {
+    setField(id, FIELDS[id].def);
+    $(id).addEventListener("change", rebuild);
+    $(id).addEventListener("keydown", e => { if (e.key === "Enter") $(id).blur(); });
+  }
+  $("fMask").addEventListener("change", repaint);
+  $("btNew").addEventListener("click", () => { setField("fSeed", 1 + Math.floor(Math.random() * 999999)); rebuild(); });
+  bindMap("cvHeights", "ttHeights"); bindMap("cvSvf", "ttSvf");
+  new ResizeObserver(() => { requestDraw(); updatePoint(); }).observe($("cvSvf"));
+  new MutationObserver(repaint).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+  matchMedia("(prefers-color-scheme: dark)").addEventListener("change", repaint);
+  rebuild();
+}
+init();
+</script>
+</body>
+</html>

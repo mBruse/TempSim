@@ -82,6 +82,24 @@ z. B. über GitHub Pages veröffentlichen). Sie bietet zusätzlich Hover-Werte i
 allen Diagrammen, eine Wertetabelle mit CSV-Kopie, die analytische
 Dämpfungs-Einhüllende im Tiefenprofil und einen hellen/dunklen Modus.
 
+## Sky View Factor
+
+`web/svf.html` ist eine zweite, unabhängige Web-Seite (ebenfalls ohne Build).
+Sie erzeugt auf einem Raster (Standard 200 × 200 Zellen à 2 m) zufällige
+Gebäude mit zufälliger Höhe und berechnet für jede Zelle den Sky View Factor:
+
+* Vom Mittelpunkt jeder Zelle läuft in 360 Richtungen (1° Azimut) ein Strahl
+  Zelle für Zelle durch das Raster und bestimmt den Horizontwinkel β.
+* `SVF = (1/360) · Σ cos² β` (waagerechte Fläche, gleichmäßig heller Himmel);
+  0 = kein Himmel sichtbar, 1 = freier Himmel.
+* Auf Dächern wird in Dachhöhe gerechnet; außerhalb des Rasters ist das
+  Gelände frei.
+
+Angezeigt werden die Karte der Gebäudehöhen, die SVF-Karte (Skala 0 bis 1),
+die Horizontlinie eines gewählten Punkts als Polardiagramm und Kennzahlen.
+Die Berechnung läuft in Web Workern und zeichnet zeilenweise mit; ohne Worker
+rechnet die Seite im Hauptthread weiter.
+
 ## Bauen
 
 * RAD Studio / Delphi mit VCL und dem mitgelieferten TeeChart Standard
