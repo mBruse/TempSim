@@ -57,7 +57,7 @@ body {
   padding-block: 16px 24px;
 }
 h1, h2, h3 { font-family: var(--font-display); font-weight: 600; text-wrap: balance; margin: 0; }
-button, input { font: inherit; color: inherit; }
+button, input, select { font: inherit; color: inherit; }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 .app { max-width: 1440px; margin: 0 auto; display: grid; gap: 16px; }
@@ -72,6 +72,7 @@ button, input { font: inherit; color: inherit; }
   border-radius: 8px; padding: 8px 16px; font-weight: 500; cursor: pointer;
 }
 .btn:hover { border-color: var(--accent); }
+.btn:disabled { opacity: .45; cursor: not-allowed; }
 .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
 
 .layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; }
@@ -90,11 +91,15 @@ legend {
 .row { display: grid; grid-template-columns: minmax(0, 1fr) 96px; align-items: center; gap: 8px; }
 .row label { color: var(--ink-2); }
 .row .unit { color: var(--muted); }
-input[type="text"] {
+input[type="text"], select {
   width: 100%; min-width: 0; background: var(--surface-2); border: 1px solid var(--line);
-  border-radius: 6px; padding: 6px 8px; text-align: right;
-  font-family: var(--font-data); font-variant-numeric: tabular-nums;
+  border-radius: 6px; padding: 6px 8px;
 }
+.row input[type="text"] { text-align: right; font-family: var(--font-data); font-variant-numeric: tabular-nums; }
+.search { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; margin: 0; }
+.search .btn { padding: 6px 12px; }
+.note.err { color: var(--err); font-family: var(--font-body); }
+.note a, .hint a { color: inherit; }
 input.invalid { border-color: var(--err); color: var(--err); }
 .note { font-family: var(--font-data); font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
 .check { display: flex; gap: 8px; align-items: center; color: var(--ink-2); }
@@ -170,27 +175,36 @@ details.info p { margin: 0; }
   <header class="top">
     <div class="brand">
       <h1>Sky View Factor</h1>
-      <p>Zufällige Gebäude auf einem Raster. Für jede Zelle bestimmt ein Raytracing in 360 Richtungen (1° Azimut), welcher Anteil des Himmels sichtbar ist: 0 = kein Himmel, 1 = freier Himmel.</p>
+      <p>Echte Gebäudegrundrisse aus OpenStreetMap auf einem Raster. Für jede Zelle bestimmt ein Raytracing in 360 Richtungen (1° Azimut), welcher Anteil des Himmels sichtbar ist: 0 = kein Himmel, 1 = freier Himmel.</p>
     </div>
-    <button class="btn primary" id="btNew" type="button">Neue Stadt</button>
   </header>
 
   <div class="layout">
     <aside class="panel" aria-label="Einstellungen">
+      <fieldset>
+        <legend>Gebiet</legend>
+        <select id="fPlace" aria-label="Gebiet"></select>
+        <form class="search" id="searchForm">
+          <input type="text" id="fQuery" placeholder="Ort, z. B. Mainz Dom" aria-label="Ort in OpenStreetMap suchen" autocomplete="off">
+          <button class="btn" id="btLoad" type="submit">Laden</button>
+        </form>
+        <div class="note" id="placeNote" role="status"></div>
+      </fieldset>
       <fieldset>
         <legend>Raster</legend>
         <div class="row"><label for="fN">Zellen je Seite</label><input type="text" inputmode="numeric" id="fN"></div>
         <div class="row"><label for="fCell">Zellgröße <span class="unit">(m)</span></label><input type="text" inputmode="decimal" id="fCell"></div>
         <div class="note" id="gridNote"></div>
       </fieldset>
-      <fieldset>
-        <legend>Gebäude</legend>
+      <fieldset id="randomSet" hidden>
+        <legend>Zufällige Gebäude</legend>
         <div class="row"><label for="fCover">Überbauter Anteil <span class="unit">(%)</span></label><input type="text" inputmode="decimal" id="fCover"></div>
         <div class="row"><label for="fSMin">Kantenlänge min <span class="unit">(m)</span></label><input type="text" inputmode="decimal" id="fSMin"></div>
         <div class="row"><label for="fSMax">Kantenlänge max <span class="unit">(m)</span></label><input type="text" inputmode="decimal" id="fSMax"></div>
         <div class="row"><label for="fHMin">Höhe min <span class="unit">(m)</span></label><input type="text" inputmode="decimal" id="fHMin"></div>
         <div class="row"><label for="fHMax">Höhe max <span class="unit">(m)</span></label><input type="text" inputmode="decimal" id="fHMax"></div>
         <div class="row"><label for="fSeed">Startwert Zufall</label><input type="text" inputmode="numeric" id="fSeed"></div>
+        <button class="btn" id="btNew" type="button">Neue Zufallsstadt</button>
       </fieldset>
       <fieldset>
         <legend>Darstellung</legend>
@@ -206,6 +220,7 @@ details.info p { margin: 0; }
           <div class="mapfoot">
             <div class="cbar"><span class="cbar-title">Höhe (m)</span><div class="cbar-grad" id="gradHeights"></div><div class="cbar-ticks" id="ticksHeights"></div></div>
             <div class="scale"><div class="scale-bar" id="scaleHeights"></div><span id="scaleHeightsLabel"></span><span><span class="swatch sw-ground"></span>Boden</span><span class="north">Norden oben</span></div>
+            <p class="hint" id="attribution" hidden>Grundrisse © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap-Mitwirkende</a> (ODbL). Höhen aus OSM-Angaben, sonst geschätzt.</p>
           </div>
         </section>
         <section class="card" aria-label="Sky View Factor">
@@ -239,7 +254,8 @@ details.info p { margin: 0; }
         <details class="info">
           <summary>Verfahren</summary>
           <div class="body">
-            <p>Jede Zelle trägt eine Höhe: 0 m für Boden, sonst die Dachhöhe. Gebäude sind zufällig platzierte Rechtecke mit zufälliger Höhe; wo sie sich überlappen, gilt die größere Höhe.</p>
+            <p>Die Gebäudegrundrisse stammen aus OpenStreetMap. Einige Gebiete sind mitgeliefert; „Laden“ sucht einen beliebigen Ort (Name, Adresse oder „Breite, Länge“) und holt die Gebäude um diesen Punkt. Jede Zelle, deren Mittelpunkt in einem Grundriss liegt, erhält dessen Höhe, Innenhöfe bleiben frei.</p>
+            <p>Die Höhe kommt, soweit vorhanden, aus der OSM-Angabe <i>height</i>, sonst aus der Geschosszahl (3,2 m je Geschoss, plus Dach). Fehlt beides, wird geschätzt: nach Gebäudeart (Garage, Wohnhaus, Kirche …), sonst mit der mittleren bekannten Höhe im Gebiet, jeweils um ±15 % gestreut. Gebäudeteile (<i>building:part</i>) ersetzen den Umriss, wo sie erfasst sind.</p>
             <p>Vom Mittelpunkt jeder Zelle läuft in 360 Richtungen (Azimut 0,5°, 1,5°, … 359,5°) ein Strahl durch das Raster. Er besucht jede Zelle, die er schneidet, und merkt sich den größten Höhenwinkel β, unter dem eine höhere Zelle erscheint: tan β = (h − h₀) / Abstand. Der Strahl endet am Rasterrand oder sobald auch das höchste Gebäude den Horizont nicht mehr anheben könnte.</p>
             <p>Aus den 360 Horizontwinkeln folgt der Sky View Factor einer waagerechten Fläche bei gleichmäßig hellem Himmel:</p>
             <div class="formula">SVF = (1/360) · Σ cos² βᵢ</div>
@@ -253,6 +269,7 @@ details.info p { margin: 0; }
   </div>
 </div>
 
+<script src="svf-places.js"></script>
 <script>
 "use strict";
 
@@ -326,7 +343,7 @@ function mulberry32(a) {
 function generateCity(p) {
   const n = p.n, rnd = mulberry32(p.seed), h = new Float32Array(n * n), target = p.cover * n * n;
   const side = () => Math.min(n, Math.max(1, Math.round((p.sMin + rnd() * (p.sMax - p.sMin)) / p.cell)));
-  let covered = 0, count = 0, hmax = 0;
+  let covered = 0, count = 0;
   for (let tries = 0; tries < 100000 && covered < target; tries++) {
     const w = side(), d = side();
     const x0 = Math.floor(rnd() * (n - w + 1)), y0 = Math.floor(rnd() * (n - d + 1));
@@ -336,12 +353,186 @@ function generateCity(p) {
       if (h[i] === 0) covered++;
       if (hh > h[i]) h[i] = hh;
     }
-    if (hh > hmax) hmax = hh;
     count++;
   }
-  const hc = new Float32Array(n * n);
-  for (let i = 0; i < hc.length; i++) hc[i] = h[i] / p.cell;
-  return { n, cell: p.cell, h, hc, hmax, hmaxC: hmax / p.cell, count, cover: covered / (n * n) };
+  const src = new Uint8Array(n * n);
+  for (let i = 0; i < src.length; i++) if (h[i] > 0) src[i] = H_RANDOM;
+  return { h, src, count };
+}
+
+/* <osm-core> */
+/* ---------- OpenStreetMap: Grundrisse lesen, Höhen bestimmen, rastern ---------- */
+const H_TAG = 1, H_LEVELS = 2, H_GUESS = 3, H_RANDOM = 4;      // Herkunft einer Höhe
+const LEVEL_HEIGHT = 3.2;                                       // m je Geschoss
+
+// "12", "12,5 m", "40 ft", "40'" -> Meter
+function parseLength(v) {
+  if (v == null) return NaN;
+  const m = /^\s*([0-9]+(?:[.,][0-9]+)?)\s*(m|ft|feet|')?\s*$/i.exec(String(v));
+  if (!m) return NaN;
+  const x = Number(m[1].replace(",", "."));
+  return m[2] && m[2].toLowerCase() !== "m" ? x * 0.3048 : x;
+}
+// Typische Höhen (m) nach building=*; alles Übrige wird aus der Umgebung geschätzt
+const TYPE_HEIGHT = {
+  garage: 3, garages: 3, carport: 3, shed: 3, hut: 3, cabin: 3, kiosk: 3, roof: 4, greenhouse: 3, service: 3,
+  toilets: 3, container: 3, bicycle_shed: 3, allotment_house: 3, bungalow: 4, static_caravan: 3,
+  house: 8, detached: 8, semidetached_house: 8, terrace: 9, farm: 8, barn: 7, stable: 5, farm_auxiliary: 6,
+  industrial: 9, warehouse: 9, manufacture: 9, hangar: 12, supermarket: 7, chapel: 8,
+  church: 20, cathedral: 35, mosque: 15, synagogue: 15, temple: 15,
+  school: 13, kindergarten: 7, university: 16, college: 16, hospital: 20, train_station: 12, parking: 12, stadium: 20
+};
+function hash01(id) { let x = Math.imul(id ^ (id >>> 15), 0x2c1b3c6d); x = Math.imul(x ^ (x >>> 12), 0x297a2d39); return ((x ^ (x >>> 15)) >>> 0) / 4294967296; }
+function ringArea(r) { let a = 0; for (let i = 0, j = r.length - 2; i < r.length; j = i, i += 2) a += r[j] * r[i + 1] - r[i] * r[j + 1]; return Math.abs(a) / 2; }
+
+// OSM-Elemente (Knoten, Wege, Relationen wie von Overpass "out body; >; out skel" oder der OSM-API)
+// -> Gebäude { p: Gebäudeteil?, h: Höhe in m, s: Herkunft, r: Ringe [x0, y0, x1, y1, ...] in m um (lat0, lon0) }
+function parseOsm(elements, lat0, lon0, half) {
+  const kx = 111320 * Math.cos(lat0 * Math.PI / 180), ky = 110540;
+  const nodes = new Map(), ways = new Map(), rels = [];
+  for (const e of elements) {
+    if (e.type === "node") nodes.set(e.id, [(e.lon - lon0) * kx, (e.lat - lat0) * ky]);
+    else if (e.type === "way") ways.set(e.id, e);
+    else if (e.type === "relation") rels.push(e);
+  }
+  const ringOf = w => {
+    const r = [];
+    for (const id of w.nodes || []) { const p = nodes.get(id); if (p) r.push(p[0], p[1]); }
+    return r.length >= 6 ? r : null;
+  };
+  const isBuilding = t => t && ((t.building && t.building !== "no") || (t["building:part"] && t["building:part"] !== "no")) && t.location !== "underground";
+  const raw = [], outerOfRelation = new Set();
+  for (const rel of rels) {
+    const t = rel.tags;
+    if (!isBuilding(t) || t.type !== "multipolygon") continue;
+    const rings = [];
+    let area = 0;
+    for (const m of rel.members || []) {
+      const w = m.type === "way" && ways.get(m.ref), r = w && ringOf(w);
+      if (!r) continue;
+      if (m.role !== "inner") outerOfRelation.add(m.ref);
+      rings.push(r);                                   // gerade-ungerade-Füllung: Innenhöfe bleiben frei
+      area += (m.role === "inner" ? -1 : 1) * ringArea(r);
+    }
+    if (rings.length) raw.push({ id: rel.id, t, rings, area: Math.max(area, 1) });
+  }
+  for (const w of ways.values()) {
+    if (!isBuilding(w.tags) || outerOfRelation.has(w.id)) continue;
+    const r = ringOf(w);
+    if (r) raw.push({ id: w.id, t: w.tags, rings: [r], area: Math.max(ringArea(r), 1) });
+  }
+  // nur Gebäude, die das Gebiet berühren
+  const list = raw.filter(b => {
+    let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+    for (const r of b.rings) for (let i = 0; i < r.length; i += 2) { x0 = Math.min(x0, r[i]); x1 = Math.max(x1, r[i]); y0 = Math.min(y0, r[i + 1]); y1 = Math.max(y1, r[i + 1]); }
+    return x1 > -half && x0 < half && y1 > -half && y0 < half;
+  });
+  // 1. Höhe aus height=*, 2. aus building:levels, 3. geschätzt
+  const known = [];
+  for (const b of list) {
+    const t = b.t;
+    b.p = t.building && t.building !== "no" ? 0 : 1;
+    let h = parseLength(t.height != null ? t.height : t["building:height"]);
+    if (h > 0) b.s = H_TAG;
+    else {
+      const lv = parseLength(t["building:levels"]), roof = parseLength(t["roof:height"]), roofLv = parseLength(t["roof:levels"]);
+      if (lv >= 0) { h = Math.max(3, lv * LEVEL_HEIGHT + (roof > 0 ? roof : roofLv > 0 ? roofLv * 2.5 : 0)); b.s = H_LEVELS; }
+    }
+    if (b.s) { b.h = h; if (!b.p && b.area >= 80) known.push(h); }
+  }
+  known.sort((a, c) => a - c);
+  const ref = known.length >= 5 ? known[known.length >> 1] : 12;   // übliche Höhe in diesem Gebiet
+  for (const b of list) {
+    if (b.s) continue;
+    const type = b.p ? "" : b.t.building;
+    let h = TYPE_HEIGHT[type];
+    if (h == null) h = b.area < 30 ? 3 : b.area < 100 ? Math.min(ref, 7) : ref;
+    b.h = h * (0.85 + 0.3 * hash01(b.id)); b.s = H_GUESS;
+  }
+  return list.map(b => ({ p: b.p, h: Math.min(900, Math.round(b.h * 2) / 2), s: b.s, r: b.rings }));
+}
+
+// Gebäude auf das Raster legen (n × n Zellen, Zellmitte entscheidet, Norden oben).
+function rasterize(buildings, n, cell) {
+  const half = n * cell / 2, h = new Float32Array(n * n), src = new Uint8Array(n * n);
+  const hp = new Float32Array(n * n), sp = new Uint8Array(n * n), xs = [];
+  let count = 0;
+  for (const b of buildings) {
+    const H = b.p ? hp : h, S = b.p ? sp : src;
+    let r0 = Infinity, r1 = -Infinity, hit = false;
+    for (const r of b.r) for (let i = 1; i < r.length; i += 2) { const gy = (half - r[i]) / cell; if (gy < r0) r0 = gy; if (gy > r1) r1 = gy; }
+    r0 = Math.max(0, Math.ceil(r0 - 0.5)); r1 = Math.min(n - 1, Math.floor(r1 - 0.5));
+    for (let row = r0; row <= r1; row++) {
+      const yc = half - (row + 0.5) * cell;
+      xs.length = 0;
+      for (const r of b.r) for (let i = 0, j = r.length - 2; i < r.length; j = i, i += 2) {
+        const ya = r[j + 1], yb = r[i + 1];
+        if ((ya <= yc) !== (yb <= yc)) xs.push((r[j] + (yc - ya) / (yb - ya) * (r[i] - r[j]) + half) / cell);
+      }
+      xs.sort((a, c) => a - c);
+      for (let k = 0; k + 1 < xs.length; k += 2) {
+        const c0 = Math.max(0, Math.ceil(xs[k] - 0.5)), c1 = Math.min(n - 1, Math.ceil(xs[k + 1] - 0.5) - 1);
+        for (let c = c0; c <= c1; c++) { const i = row * n + c; hit = true; if (b.h > H[i]) { H[i] = b.h; S[i] = b.s; } }
+      }
+    }
+    if (hit && !b.p) count++;
+  }
+  // Gebäudeteile (building:part) ersetzen den Umriss, wo es sie gibt
+  for (let i = 0; i < h.length; i++) if (hp[i] > 0) { h[i] = hp[i]; src[i] = sp[i]; }
+  return { h, src, count };
+}
+/* </osm-core> */
+
+// Höhenraster (m) -> alles, was Rechnung und Anzeige brauchen
+function makeCity(n, cell, g) {
+  const h = g.h, hc = new Float32Array(n * n), built = [], share = [0, 0, 0, 0, 0];
+  let hmax = 0;
+  for (let i = 0; i < h.length; i++) {
+    hc[i] = h[i] / cell;
+    if (h[i] > 0) { built.push(h[i]); share[g.src[i]]++; if (h[i] > hmax) hmax = h[i]; }
+  }
+  // Farbskala bis zum 98. Perzentil, damit ein einzelner Turm die Karte nicht ausbleicht
+  built.sort((a, b) => a - b);
+  const p98 = built.length ? built[Math.floor(0.98 * (built.length - 1))] : 0;
+  const hScale = hmax <= p98 * 1.15 ? hmax : Math.ceil(p98);
+  return { n, cell, h, hc, src: g.src, hmax, hmaxC: hmax / cell, hScale, count: g.count,
+    cover: built.length / (n * n), share: share.map(v => built.length ? v / built.length : 0) };
+}
+
+/* ---------- Orte aus OpenStreetMap laden ---------- */
+const OVERPASS = ["https://overpass-api.de/api/interpreter", "https://overpass.private.coffee/api/interpreter"];
+class PlaceError extends Error {}
+async function fetchJson(url, options, ms) {
+  const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), ms);
+  try {
+    const r = await fetch(url, Object.assign({ signal: ctl.signal }, options));
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    return await r.json();
+  } finally { clearTimeout(timer); }
+}
+// Ortsname, Adresse oder "Breite, Länge" -> Koordinaten (Nominatim)
+async function geocode(q) {
+  const m = /^\s*(-?\d+(?:\.\d+)?)\s*[,;\s]\s*(-?\d+(?:\.\d+)?)\s*$/.exec(q);
+  if (m && Math.abs(+m[1]) <= 85 && Math.abs(+m[2]) <= 180) return { lat: +m[1], lon: +m[2] };
+  let res;
+  try { res = await fetchJson(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&q=${encodeURIComponent(q)}`, {}, 15000); }
+  catch (e) { throw new PlaceError("OpenStreetMap ist von hier nicht erreichbar. Die mitgelieferten Gebiete funktionieren weiterhin."); }
+  if (!res.length) throw new PlaceError("Ort nicht gefunden. Anders schreiben oder „Breite, Länge“ eingeben.");
+  return { lat: +res[0].lat, lon: +res[0].lon };
+}
+// Alle Gebäude im Quadrat um den Punkt: Overpass, ersatzweise die OSM-API (nur kleine Ausschnitte)
+async function fetchBuildings(lat, lon, half) {
+  const box = h => { const dLat = h / 110540, dLon = h / (111320 * Math.cos(lat * Math.PI / 180)); return [lat - dLat, lon - dLon, lat + dLat, lon + dLon].map(v => v.toFixed(6)); };
+  const bb = box(half).join(",");
+  const query = `[out:json][timeout:25];(way["building"](${bb});relation["building"]["type"="multipolygon"](${bb});` +
+    `way["building:part"](${bb});relation["building:part"]["type"="multipolygon"](${bb}););out body;>;out skel qt;`;
+  for (const url of OVERPASS) {
+    try { return { elements: (await fetchJson(url, { method: "POST", body: new URLSearchParams({ data: query }) }, 30000)).elements, half }; }
+    catch (e) { /* nächsten Server versuchen */ }
+  }
+  const small = Math.min(half, 500), [s, w, n, e] = box(small);
+  try { return { elements: (await fetchJson(`https://api.openstreetmap.org/api/0.6/map.json?bbox=${w},${s},${e},${n}`, {}, 60000)).elements, half: small }; }
+  catch (e) { throw new PlaceError("Die Gebäudedaten konnten nicht geladen werden. Die mitgelieferten Gebiete funktionieren weiterhin."); }
 }
 
 /* ---------- Farben ---------- */
@@ -419,6 +610,7 @@ function readParams() {
 }
 
 /* ---------- Zustand ---------- */
+const places = [];        // { name, lat, lon, half, b: Gebäude }, mitgeliefert oder geladen
 let city = null;          // Bebauung
 let svf = null;           // Float32Array n*n, NaN = noch nicht berechnet
 let pinned = null;        // festgehaltene Zelle {x, y}
@@ -434,7 +626,7 @@ function paintHeights() {
   for (let i = 0, o = 0; i < n * n; i++, o += 4) {
     const h = city.h[i];
     if (h === 0) { d[o] = ground[0]; d[o + 1] = ground[1]; d[o + 2] = ground[2]; }
-    else { const k = Math.round(255 * h / city.hmax) * 3; d[o] = table[k]; d[o + 1] = table[k + 1]; d[o + 2] = table[k + 2]; }
+    else { const k = Math.round(255 * Math.min(1, h / city.hScale)) * 3; d[o] = table[k]; d[o + 1] = table[k + 1]; d[o + 2] = table[k + 2]; }
     d[o + 3] = 255;
   }
   ctx.putImageData(img, 0, 0);
@@ -506,6 +698,7 @@ function horizonAt(x, y) {
   return tans;
 }
 const COMPASS = ["N", "NO", "O", "SO", "S", "SW", "W", "NW"];
+const SRC_LABEL = ["", "OSM-Höhe", "aus Geschossen", "geschätzt", "Zufall"];
 function kvHtml(rows) { return rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join(""); }
 function cellPos(c) { return { x: (c.x + 0.5) * city.cell, y: (city.n - c.y - 0.5) * city.cell }; }
 function updatePoint() {
@@ -518,7 +711,7 @@ function updatePoint() {
   $("pointMode").textContent = hover ? "unter dem Zeiger" : "festgehalten";
   $("pointValues").innerHTML = kvHtml([
     ["Position x / y", `${fmt(pos.x, 1)} m / ${fmt(pos.y, 1)} m`],
-    ["Fläche", h > 0 ? `Dach, ${fmt(h, 1)} m` : "Boden"],
+    ["Fläche", h > 0 ? `Dach, ${fmt(h, 1)} m (${SRC_LABEL[city.src[c.y * city.n + c.x]]})` : "Boden"],
     ["Sky View Factor", fmt(s / N_AZ, 3, true)],
     ["Mittlerer Horizontwinkel", `${fmt(sumB / N_AZ * deg, 1)}°`],
     ["Höchstes Hindernis", bMax > 0 ? `${fmt(bMax, 1)}° in ${COMPASS[Math.round((kMax + 0.5) / 45) % 8]}` : "keins"]
@@ -533,6 +726,8 @@ function updateStats(seconds, threads) {
     ["Überbaut", `${fmt(city.cover * 100, 1)} %`],
     ["Höchstes Gebäude", city.hmax > 0 ? `${fmt(city.hmax, 1)} m` : "–"]
   ];
+  if (city.real && city.hmax > 0) rows.push(["Höhe aus OSM-Angabe", `${fmt(city.share[H_TAG] * 100, 0)} %`],
+    ["Höhe aus Geschosszahl", `${fmt(city.share[H_LEVELS] * 100, 0)} %`], ["Höhe geschätzt", `${fmt(city.share[H_GUESS] * 100, 0)} %`]);
   if (seconds != null) {
     let sg = 0, ng = 0, sr = 0, nr = 0, min = 1;
     for (let i = 0; i < n * n; i++) {
@@ -568,8 +763,8 @@ function updateLegends() {
   $("gradSvf").style.background = gradientCss(SVF_RAMP);
   setTicks($("ticksSvf"), [[0, "0"], [0.25, "0,25"], [0.5, "0,5"], [0.75, "0,75"], [1, "1"]]);
   $("gradHeights").style.background = gradientCss(isDark() ? HEIGHT_DARK : HEIGHT_LIGHT);
-  const hm = city.hmax;
-  setTicks($("ticksHeights"), hm > 0 ? [[0, "0"], [0.5, fmt(hm / 2, 1)], [1, fmt(hm, 1)]] : [[0, "0"]]);
+  const hm = city.hScale;
+  setTicks($("ticksHeights"), hm > 0 ? [[0, "0"], [0.5, fmt(hm / 2, 1)], [1, (city.hmax > hm ? "≥ " : "") + fmt(hm, 1)]] : [[0, "0"]]);
   const size = city.n * city.cell, len = niceLength(size / 4), label = `${fmt(len, 1)} m`;
   for (const id of ["scaleHeights", "scaleSvf"]) { $(id).style.width = `${100 * len / size}%`; $(id + "Label").textContent = label; }
   $("maskKey").hidden = !$("fMask").checked;
@@ -652,9 +847,15 @@ function nearestGround(cx, cy) {
 }
 
 function rebuild() {
-  const p = readParams();
-  city = generateCity(p);
-  const n = city.n;
+  const p = readParams(), n = p.n, sel = $("fPlace").value, place = sel === "random" ? null : places[+sel];
+  city = makeCity(n, p.cell, place ? rasterize(place.b, n, p.cell) : generateCity(p));
+  city.real = !!place;
+  $("randomSet").hidden = !!place;
+  $("attribution").hidden = !place;
+  if (place && !loading) {
+    const size = 2 * place.half;
+    setNote(n * p.cell > size + 1 ? `Gebäudedaten reichen nur ${fmt(size, 0)} m × ${fmt(size, 0)} m weit.` : "");
+  }
   svf = new Float32Array(n * n).fill(NaN);
   offHeights.width = offHeights.height = offSvf.width = offSvf.height = n;
   imgSvf = offSvf.getContext("2d").createImageData(n, n);
@@ -684,6 +885,7 @@ function showTooltip(cv, tt, e, c) {
   const i = c.y * city.n + c.x, h = city.h[i], v = svf[i], pos = cellPos(c);
   tt.innerHTML = `<div class="tt-title">x ${fmt(pos.x, 1)} m · y ${fmt(pos.y, 1)} m</div>` +
     `<div class="tt-row"><span>${h > 0 ? "Dach" : "Boden"}</span><b>${h > 0 ? fmt(h, 1) + " m" : "0 m"}</b></div>` +
+    (h > 0 ? `<div class="tt-row"><span>Höhe</span><b>${SRC_LABEL[city.src[i]]}</b></div>` : "") +
     `<div class="tt-row"><span>SVF</span><b>${v === v ? fmt(v, 3, true) : "…"}</b></div>`;
   tt.hidden = false;
   const r = cv.getBoundingClientRect(), px = e.clientX - r.left, py = e.clientY - r.top;
@@ -708,7 +910,45 @@ function bindMap(cvId, ttId) {
   });
 }
 
+function setNote(text, isError) { const el = $("placeNote"); el.textContent = text; el.classList.toggle("err", !!isError); }
+function addPlace(place) {
+  places.push(place);
+  const o = document.createElement("option");
+  o.value = String(places.length - 1); o.textContent = place.name;
+  $("fPlace").insertBefore(o, $("fPlace").querySelector('option[value="random"]'));
+  return o.value;
+}
+let loading = false;
+async function loadPlace() {
+  const q = $("fQuery").value.trim();
+  if (!q || loading) return;
+  loading = true; $("btLoad").disabled = true;
+  try {
+    setNote("Suche Ort …");
+    const pos = await geocode(q), p = readParams();
+    setNote("Lade Gebäude aus OpenStreetMap …");
+    const data = await fetchBuildings(pos.lat, pos.lon, Math.min(1000, Math.max(300, p.n * p.cell / 2)));
+    const b = parseOsm(data.elements, pos.lat, pos.lon, data.half);
+    if (!b.length) throw new PlaceError("Dort sind in OpenStreetMap keine Gebäude erfasst.");
+    $("fPlace").value = addPlace({ name: q, lat: pos.lat, lon: pos.lon, half: data.half, b });
+    setNote("");
+    loading = false;
+    rebuild();
+  } catch (e) {
+    setNote(e instanceof PlaceError ? e.message : "Die Gebäudedaten konnten nicht verarbeitet werden.", true);
+  } finally { loading = false; $("btLoad").disabled = false; }
+}
+
 function init() {
+  const random = document.createElement("option");
+  random.value = "random"; random.textContent = "Zufällige Rechtecke";
+  $("fPlace").appendChild(random);
+  // mitgelieferte Gebiete (svf-places.js): [Teil, Höhe, Herkunft, Ringe in Dezimetern ...]
+  for (const pl of window.SVF_PLACES || [])
+    addPlace({ name: pl.name, lat: pl.lat, lon: pl.lon, half: pl.half, b: pl.b.map(a => ({ p: a[0], h: a[1], s: a[2], r: a.slice(3).map(r => r.map(v => v / 10)) })) });
+  $("fPlace").value = places.length ? "0" : "random";
+  $("fPlace").addEventListener("change", () => { setNote(""); rebuild(); });
+  $("searchForm").addEventListener("submit", e => { e.preventDefault(); loadPlace(); });
   for (const id in FIELDS) {
     setField(id, FIELDS[id].def);
     $(id).addEventListener("change", rebuild);

@@ -81,3 +81,4 @@ __recovery/
 # Delphi symbol module and legacy Delphi 7 project options (superseded by .dproj)
 *.dsm
 *.dof
+tools/.osm-cache/
