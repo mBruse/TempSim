@@ -95,7 +95,6 @@ type
     procedure FillInfoText;
     procedure ReadParams;
     procedure BuildSeries;
-    procedure UpdateSeriesTitles;
     procedure AddTimePoints;
     procedure RunSteps(Count: Integer);
     function ModelDiverged: Boolean;
@@ -407,6 +406,7 @@ procedure TfrmTemp1D.BuildSeries;
 var
   i, N: Integer;
   S: TLineSeries;
+  Title: string;
 begin
   for S in FTimeSeries do
     S.Free;
@@ -415,35 +415,20 @@ begin
   SetLength(FTimeSeries, N);
   for i := 0 to N - 1 do
   begin
+    Title := Format('Knoten %d', [i]);
+    if i = 0 then
+      Title := Title + ' – Rand'
+    else if i = N - 1 then
+      Title := Title + ' – Rand, konstant';
+
     S := TLineSeries.Create(Self);
     S.ParentChart := ChartTime;
+    S.Title := Title;
     S.SeriesColor := DepthColor(i, N);
     S.LinePen.Width := 2;
     S.XValues.Order := loAscending;
     FTimeSeries[i] := S;
   end;
-  UpdateSeriesTitles;
-end;
-
-procedure TfrmTemp1D.UpdateSeriesTitles;
-var
-  i, N: Integer;
-  Title: string;
-begin
-  // Legende zeigt die Tiefe der Knoten und muss bei geändertem dx mitziehen
-  N := Length(FTimeSeries);
-  for i := 0 to N - 1 do
-  begin
-    Title := Format('Knoten %d (%s cm)',
-      [i, FormatFloat('0.##', FModel.NodeDepth(i) * 100)]);
-    if i = 0 then
-      Title := Title + ' – Rand'
-    else if i = N - 1 then
-      Title := Title + ' – Rand, konstant';
-    FTimeSeries[i].Title := Title;
-  end;
-  // Ein geänderter Serientitel löst in TeeChart kein Neuzeichnen der Legende aus
-  ChartTime.Invalidate;
 end;
 
 procedure TfrmTemp1D.AddTimePoints;
@@ -663,7 +648,6 @@ begin
   if FUpdating or (FModel = nil) then
     Exit;
   ReadParams;
-  UpdateSeriesTitles;
   UpdateProfile;
   UpdateStability;
   UpdateStatus;
