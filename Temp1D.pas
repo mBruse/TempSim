@@ -729,7 +729,7 @@ var
   Bg, Fg, LineColor: TColor;
   TimeMax, TimeScale, Step, TickStep, TMin, TMax, V, GX, GY: Double;
   TimeUnit, S: string;
-  N, Rows, TextH, PL, PT, PR, PB, PW, PH, X, Y, i, k, r, c, BarL, BarW,
+  N, Rows, TextH, PL, PT, PR, PB, PW, PH, X, Y, i, k, ri, ci, BarL, BarW,
     LastLabelY: Integer;
   Row: PRGBTripleRow;
   RGBValue: Longint;
@@ -776,11 +776,11 @@ begin
   // Wertebereich, Isolinien und Farbbänder
   TMin := G[0][0];
   TMax := TMin;
-  for r := 0 to Rows - 1 do
-    for c := 0 to N - 1 do
+  for ri := 0 to Rows - 1 do
+    for ci := 0 to N - 1 do
     begin
-      TMin := Min(TMin, G[r][c]);
-      TMax := Max(TMax, G[r][c]);
+      TMin := Min(TMin, G[ri][ci]);
+      TMax := Max(TMax, G[ri][ci]);
     end;
   Levels := ContourLevels(TMin, TMax, 12, Step);
   SetLength(Bands, Length(Levels) + 1);
