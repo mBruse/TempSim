@@ -7,7 +7,7 @@ uses
   System.UITypes, Vcl.Graphics, Vcl.Controls, Vcl.Forms, Vcl.Dialogs,
   Vcl.StdCtrls, Vcl.ExtCtrls, Vcl.ComCtrls, Vcl.NumberBox, Vcl.Themes,
   VCLTee.TeEngine, VCLTee.Series, VCLTee.TeeProcs, VCLTee.Chart,
-  VCLTee.TeeGDIPlus, Temp1DModel;
+  VCLTee.TeeGDIPlus, Temp1DModel, Temp1DContour;
 
 type
   TfrmTemp1D = class(TForm)
@@ -50,6 +50,8 @@ type
     ChartTime: TChart;
     tsProfile: TTabSheet;
     ChartProfile: TChart;
+    tsIsopleth: TTabSheet;
+    pbIsopleth: TPaintBox;
     tsInfo: TTabSheet;
     Memo1: TMemo;
     StatusBar: TStatusBar;
@@ -64,12 +66,15 @@ type
     procedure cbStyleChange(Sender: TObject);
     procedure ParamChanged(Sender: TObject);
     procedure pbSystemPaint(Sender: TObject);
+    procedure pbIsoplethPaint(Sender: TObject);
   private
     FModel: THeatModel1D;
     FTimeSeries: array of TLineSeries;
     FProfileSeries, FMinSeries, FMaxSeries: THorizLineSeries;
     FStarted: Boolean;
     FUpdating: Boolean;
+    FIsoBitmap: TBitmap;
+    FIsoDirty: Boolean;
     procedure SetupNumberBox(Box: TNumberBox; AValue, AMin, AMax: Double;
       ADecimals: Byte);
     procedure SetupCharts;
@@ -85,6 +90,9 @@ type
     procedure UpdateStability;
     procedure UpdateStatus;
     procedure UpdateButtons;
+    procedure InvalidateIsopleth;
+    function BuildIsoplethGrid(MaxRows: Integer; out TimeMax: Double): TGrid;
+    procedure RenderIsopleth(W, H: Integer);
   end;
 
 var
@@ -116,6 +124,20 @@ begin
     Round(GetRValue(RGB1) + (GetRValue(RGB2) - GetRValue(RGB1)) * F),
     Round(GetGValue(RGB1) + (GetGValue(RGB2) - GetGValue(RGB1)) * F),
     Round(GetBValue(RGB1) + (GetBValue(RGB2) - GetBValue(RGB1)) * F)));
+end;
+
+function RainbowColor(F: Double): TColor;
+const
+  // violett -> blau -> cyan -> grün -> gelb -> orange -> rot
+  Stops: array[0..6] of TColor = ($00DC3C8C, $00F05A46, $00F0C83C, $0078DC6E,
+    $005AF0FA, $005AAAFA, $003C3CF0);
+var
+  Pos: Double;
+  k: Integer;
+begin
+  Pos := EnsureRange(F, 0, 1) * High(Stops);
+  k := Min(Floor(Pos), High(Stops) - 1);
+  Result := LerpColor(Stops[k], Stops[k + 1], Pos - k);
 end;
 
 function DepthColor(Index, Count: Integer): TColor;
@@ -192,6 +214,7 @@ end;
 
 procedure TfrmTemp1D.FormDestroy(Sender: TObject);
 begin
+  FIsoBitmap.Free;
   FModel.Free;
 end;
 
@@ -284,6 +307,8 @@ begin
     L.Add('            werden übernommen; eine geänderte Knotenzahl startet neu).');
     L.Add('   Tiefenprofil – aktueller Verlauf sowie Minimum/Maximum je Knoten:');
     L.Add('            zeigt die Dämpfung der Temperaturwelle mit der Tiefe.');
+    L.Add('   Isoplethen – Temperatur als Farbfläche über Tiefe (x) und Zeit (y,');
+    L.Add('            von oben nach unten) mit Isolinien; Werte siehe Farbskala.');
   finally
     L.EndUpdate;
   end;
@@ -386,6 +411,7 @@ begin
 
   UpdateProfile;
   pbSystem.Invalidate;
+  InvalidateIsopleth;
   UpdateStatus;
 
   if Diverged then
@@ -549,6 +575,7 @@ begin
   if cbStyle.ItemIndex >= 0 then
     TStyleManager.TrySetStyle(cbStyle.Items[cbStyle.ItemIndex], False);
   pbSystem.Invalidate;
+  InvalidateIsopleth;
 end;
 
 procedure TfrmTemp1D.ParamChanged(Sender: TObject);
@@ -561,6 +588,258 @@ begin
   UpdateStability;
   UpdateStatus;
   pbSystem.Invalidate;
+  InvalidateIsopleth;
+end;
+
+procedure TfrmTemp1D.InvalidateIsopleth;
+begin
+  FIsoDirty := True;
+  pbIsopleth.Invalidate;
+end;
+
+function TfrmTemp1D.BuildIsoplethGrid(MaxRows: Integer; out TimeMax: Double): TGrid;
+var
+  N, Count, Rows, k, i, j: Integer;
+  T, X0, X1, F: Double;
+begin
+  // Zeitreihen auf ein zeitlich äquidistantes Gitter umrechnen
+  // (dt kann sich bei "Weiter" geändert haben)
+  Result := nil;
+  TimeMax := 0;
+  N := Length(FTimeSeries);
+  if N < 2 then
+    Exit;
+  Count := FTimeSeries[0].Count;
+  if Count < 2 then
+    Exit;
+  TimeMax := FTimeSeries[0].XValue[Count - 1];
+  Rows := Min(Count, MaxRows);
+
+  SetLength(Result, Rows);
+  j := 0;
+  for k := 0 to Rows - 1 do
+  begin
+    T := TimeMax * k / (Rows - 1);
+    while (j < Count - 2) and (FTimeSeries[0].XValue[j + 1] < T) do
+      Inc(j);
+    X0 := FTimeSeries[0].XValue[j];
+    X1 := FTimeSeries[0].XValue[j + 1];
+    if X1 > X0 then
+      F := EnsureRange((T - X0) / (X1 - X0), 0, 1)
+    else
+      F := 0;
+    SetLength(Result[k], N);
+    for i := 0 to N - 1 do
+      Result[k][i] := FTimeSeries[i].YValue[j] +
+        (FTimeSeries[i].YValue[j + 1] - FTimeSeries[i].YValue[j]) * F;
+  end;
+end;
+
+type
+  TRGBTripleRow = array[0..65535] of TRGBTriple;
+  PRGBTripleRow = ^TRGBTripleRow;
+
+procedure TfrmTemp1D.RenderIsopleth(W, H: Integer);
+const
+  MaxRows = 400;
+var
+  C: TCanvas;
+  G: TGrid;
+  Levels, Ticks: TDoubleArray;
+  Bands: array of TColor;
+  Segs: TSegmentArray;
+  Bg, Fg, LineColor: TColor;
+  TimeMax, TimeScale, Step, TickStep, TMin, TMax, V, GX, GY: Double;
+  TimeUnit, S: string;
+  N, Rows, TextH, PL, PT, PR, PB, PW, PH, X, Y, i, k, r, c, BarL, BarW,
+    LastLabelX, LastLabelY: Integer;
+  Row: PRGBTripleRow;
+  RGBValue: Longint;
+
+  function MapX(GridX: Double): Integer;
+  begin
+    Result := PL + Round(GridX / (N - 1) * (PW - 1));
+  end;
+
+  function MapY(GridY: Double): Integer;
+  begin
+    Result := PT + Round(GridY / (Rows - 1) * (PH - 1));
+  end;
+
+begin
+  if FIsoBitmap = nil then
+    FIsoBitmap := TBitmap.Create;
+  FIsoBitmap.PixelFormat := pf24bit;
+  FIsoBitmap.SetSize(W, H);
+  FIsoDirty := False;
+
+  C := FIsoBitmap.Canvas;
+  Bg := StyleServices.GetSystemColor(clWindow);
+  Fg := StyleServices.GetSystemColor(clWindowText);
+  C.Brush.Style := bsSolid;
+  C.Brush.Color := Bg;
+  C.FillRect(Rect(0, 0, W, H));
+  C.Font.Assign(Font);
+  C.Font.Color := Fg;
+  TextH := C.TextHeight('0');
+
+  G := BuildIsoplethGrid(MaxRows, TimeMax);
+  if Length(G) < 2 then
+  begin
+    S := 'Noch keine Daten – bitte „Start“ drücken.';
+    C.TextOut((W - C.TextWidth(S)) div 2, (H - TextH) div 2, S);
+    Exit;
+  end;
+  Rows := Length(G);
+  N := Length(G[0]);
+
+  // Wertebereich, Isolinien und Farbbänder
+  TMin := G[0][0];
+  TMax := TMin;
+  for r := 0 to Rows - 1 do
+    for c := 0 to N - 1 do
+    begin
+      TMin := Min(TMin, G[r][c]);
+      TMax := Max(TMax, G[r][c]);
+    end;
+  Levels := ContourLevels(TMin, TMax, 12, Step);
+  SetLength(Bands, Length(Levels) + 1);
+  for k := 0 to High(Bands) do
+    if Length(Bands) > 1 then
+      Bands[k] := RainbowColor(k / High(Bands))
+    else
+      Bands[k] := RainbowColor(0.5);
+
+  // Zeitachse in Stunden, bei kurzen Läufen in Minuten (Daten in min)
+  if TimeMax >= 180 then
+  begin
+    TimeUnit := 'h';
+    TimeScale := 1 / 60;
+  end
+  else
+  begin
+    TimeUnit := 'min';
+    TimeScale := 1;
+  end;
+
+  // Layout
+  PL := 16 + C.TextWidth('00000');
+  PT := 12 + 2 * TextH + 8;
+  BarW := 16;
+  PR := W - (24 + BarW + 8 + C.TextWidth('-000.0') + 8);
+  PB := H - (12 + 2 * TextH + 8);
+  BarL := PR + 24;
+  PW := PR - PL;
+  PH := PB - PT;
+  if (PW < 40) or (PH < 40) then
+    Exit;
+
+  // Titel
+  C.Brush.Style := bsClear;
+  C.Font.Style := [fsBold];
+  C.TextOut(PL, 8, 'Thermoisoplethen: Temperatur über Tiefe und Zeit');
+  C.Font.Style := [];
+
+  // Farbflächen (bilinear interpoliert, in Bänder gestuft)
+  for Y := 0 to PH - 1 do
+  begin
+    Row := FIsoBitmap.ScanLine[PT + Y];
+    GY := Y / Max(PH - 1, 1) * (Rows - 1);
+    for X := 0 to PW - 1 do
+    begin
+      GX := X / Max(PW - 1, 1) * (N - 1);
+      V := BilinearValue(G, GX, GY);
+      RGBValue := ColorToRGB(Bands[BandIndex(Levels, Step, V)]);
+      Row[PL + X].rgbtRed := GetRValue(RGBValue);
+      Row[PL + X].rgbtGreen := GetGValue(RGBValue);
+      Row[PL + X].rgbtBlue := GetBValue(RGBValue);
+    end;
+  end;
+
+  // Isolinien (ohne Beschriftung, Werte über die Farbskala)
+  LineColor := TColor($00303030);
+  C.Pen.Color := LineColor;
+  C.Pen.Width := 1;
+  for k := 0 to High(Levels) do
+  begin
+    Segs := ContourSegments(G, Levels[k]);
+    for i := 0 to High(Segs) do
+    begin
+      C.MoveTo(MapX(Segs[i].X1), MapY(Segs[i].Y1));
+      C.LineTo(MapX(Segs[i].X2), MapY(Segs[i].Y2));
+    end;
+  end;
+
+  // Rahmen
+  C.Brush.Style := bsClear;
+  C.Pen.Color := LerpColor(Bg, Fg, 0.6);
+  C.Rectangle(PL - 1, PT - 1, PR + 1, PB + 1);
+
+  // x-Achse: Tiefe der Knoten
+  C.Font.Color := Fg;
+  LastLabelX := -MaxInt;
+  for i := 0 to N - 1 do
+  begin
+    X := MapX(i);
+    C.MoveTo(X, PB);
+    C.LineTo(X, PB + 4);
+    S := FormatFloat('0.##', FModel.NodeDepth(i) * 100);
+    if X - C.TextWidth(S) div 2 > LastLabelX + 6 then
+    begin
+      C.TextOut(X - C.TextWidth(S) div 2, PB + 6, S);
+      LastLabelX := X + C.TextWidth(S) div 2;
+    end;
+  end;
+  S := 'Tiefe (cm)';
+  C.TextOut(PL + (PW - C.TextWidth(S)) div 2, PB + 8 + TextH, S);
+
+  // y-Achse: Zeit, 0 oben
+  Ticks := ContourLevels(0, TimeMax * TimeScale, Max(2, PH div (3 * TextH)), TickStep);
+  for k := 0 to High(Ticks) do
+  begin
+    Y := PT + Round(Ticks[k] / (TimeMax * TimeScale) * (PH - 1));
+    C.MoveTo(PL - 4, Y);
+    C.LineTo(PL, Y);
+    S := FormatFloat('0.##', Ticks[k]);
+    C.TextOut(PL - 6 - C.TextWidth(S), Y - TextH div 2, S);
+  end;
+  S := 'Zeit (' + TimeUnit + ')';
+  C.TextOut(Max(4, PL - C.TextWidth(S) - 6), PT - TextH - 6, S);
+
+  // Farbskala: hohe Werte oben
+  C.Pen.Color := LerpColor(Bg, Fg, 0.6);
+  for k := 0 to High(Bands) do
+  begin
+    C.Brush.Style := bsSolid;
+    C.Brush.Color := Bands[k];
+    C.FillRect(Rect(BarL, PT + Round((High(Bands) - k) / Length(Bands) * PH),
+      BarL + BarW, PT + Round((High(Bands) - k + 1) / Length(Bands) * PH)));
+  end;
+  C.Brush.Style := bsClear;
+  C.Rectangle(BarL - 1, PT - 1, BarL + BarW + 1, PB + 1);
+  LastLabelY := MaxInt;
+  for k := 0 to High(Levels) do
+  begin
+    // Grenze zwischen Band k und k+1
+    Y := PT + Round((High(Bands) - k) / Length(Bands) * PH);
+    if Y + TextH div 2 < LastLabelY - 2 then
+    begin
+      S := FormatFloat('0.##', Levels[k]);
+      C.TextOut(BarL + BarW + 6, Y - TextH div 2, S);
+      LastLabelY := Y - TextH div 2;
+    end;
+  end;
+  C.TextOut(BarL, PT - TextH - 6, '°C');
+end;
+
+procedure TfrmTemp1D.pbIsoplethPaint(Sender: TObject);
+begin
+  if FModel = nil then
+    Exit;
+  if FIsoDirty or (FIsoBitmap = nil) or (FIsoBitmap.Width <> pbIsopleth.Width) or
+    (FIsoBitmap.Height <> pbIsopleth.Height) then
+    RenderIsopleth(pbIsopleth.Width, pbIsopleth.Height);
+  pbIsopleth.Canvas.Draw(0, 0, FIsoBitmap);
 end;
 
 procedure TfrmTemp1D.pbSystemPaint(Sender: TObject);

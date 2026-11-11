@@ -5,6 +5,7 @@ uses
   Vcl.Themes,
   Vcl.Styles,
   Temp1DModel in 'Temp1DModel.pas',
+  Temp1DContour in 'Temp1DContour.pas',
   Temp1D in 'Temp1D.pas' {frmTemp1D};
 
 {$R *.res}

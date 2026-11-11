@@ -22,7 +22,9 @@ der letzte Knoten bleibt konstant auf `Tinit`.
   Ohne diese Option wird eine divergierende Lösung erkannt und abgebrochen.
 * Oben: Schema des Systems, die Knoten sind nach aktueller Temperatur eingefärbt.
 * Reiter **Zeitverlauf** (T(t) je Knoten), **Tiefenprofil** (aktuelles Profil,
-  Minimum/Maximum je Knoten: Dämpfung der Temperaturwelle), **Info**.
+  Minimum/Maximum je Knoten: Dämpfung der Temperaturwelle), **Isoplethen**
+  (Thermoisoplethendiagramm: Farbflächen und Isolinien über Tiefe × Zeit,
+  Zeit nach unten), **Info**.
 * **Start** setzt zurück und rechnet, **Weiter** rechnet ab dem aktuellen Zustand.
   Die Zeitreihen lassen sich als CSV exportieren.
 
@@ -39,5 +41,6 @@ der letzte Knoten bleibt konstant auf `Tinit`.
 | Datei | Inhalt |
 |---|---|
 | `Temp1DModel.pas` | numerischer Kern (ohne UI), Materialliste |
+| `Temp1DContour.pas` | Isolinien (Marching Squares), Interpolation, Farbbänder |
 | `Temp1D.pas` / `.dfm` | Hauptfenster |
-| `tests/TestModel.dpr` | Konsolentests des Modells (Delphi oder `fpc -Mdelphi -Fu.. TestModel.dpr`) |
+| `tests/TestModel.dpr`, `tests/TestContour.dpr` | Konsolentests (Delphi oder `fpc -Mdelphi -Fu.. TestModel.dpr`) |

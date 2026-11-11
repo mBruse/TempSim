@@ -398,6 +398,17 @@ object frmTemp1D: TfrmTemp1D
           ColorPaletteIndex = 13
         end
       end
+      object tsIsopleth: TTabSheet
+        Caption = 'Isoplethen'
+        object pbIsopleth: TPaintBox
+          Left = 0
+          Top = 0
+          Width = 876
+          Height = 555
+          Align = alClient
+          OnPaint = pbIsoplethPaint
+        end
+      end
       object tsInfo: TTabSheet
         Caption = 'Info'
         object Memo1: TMemo

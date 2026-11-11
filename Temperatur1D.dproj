@@ -133,6 +133,7 @@
             <MainSource>MainSource</MainSource>
         </DelphiCompile>
         <DCCReference Include="Temp1DModel.pas"/>
+        <DCCReference Include="Temp1DContour.pas"/>
         <DCCReference Include="Temp1D.pas">
             <Form>frmTemp1D</Form>
         </DCCReference>
