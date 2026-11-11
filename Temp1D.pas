@@ -167,7 +167,7 @@ begin
     SetupNumberBox(nbAmplitude, 5, 0, 50, 1);
     SetupNumberBox(nbPeriod, 24, 0.1, 24, 2);
     SetupNumberBox(nbDt, 1, 0.01, 1440, 2);
-    SetupNumberBox(nbSteps, 300, 1, 100000, 0);
+    SetupNumberBox(nbSteps, 1440, 1, 100000, 0);
     cbAutoSubstep.Checked := True;
   finally
     FUpdating := False;
