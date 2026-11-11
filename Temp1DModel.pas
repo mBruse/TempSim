@@ -96,7 +96,7 @@ begin
   Dt := 60;
   TInit := 20;
   Amplitude := 5;
-  Period := 2 * 3600;
+  Period := 24 * 3600;
   AutoSubstep := True;
   NodeCount := 6;
 end;

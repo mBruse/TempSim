@@ -53,7 +53,11 @@ var
 begin
   M := THeatModel1D.Create;
   try
-    // Standardwerte: Sand feucht, dx = 1 cm, dt = 1 min, 6 Knoten
+    Check(SameValue(M.Period, 24 * 3600, 1E-9), 'Standardperiode 24 h');
+
+    // Standardwerte: Sand feucht, dx = 1 cm, dt = 1 min, 6 Knoten;
+    // Periode 2 h wie im Originalprogramm
+    M.Period := 2 * 3600;
     Check(Abs(M.FourierNumber - 0.198) < 1E-9, 'Fourier-Zahl Standardwerte = 0.198');
     Check(M.IsStable and (M.SubstepCount = 1), 'Standardwerte stabil, keine Unterschritte');
 

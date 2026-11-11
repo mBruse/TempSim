@@ -77,6 +77,7 @@ type
     procedure FillInfoText;
     procedure ReadParams;
     procedure BuildSeries;
+    procedure UpdateSeriesTitles;
     procedure AddTimePoints;
     procedure RunSteps(Count: Integer);
     function ModelDiverged: Boolean;
@@ -164,7 +165,7 @@ begin
     SetupNumberBox(nbDx, 1, 0.1, 100, 2);
     SetupNumberBox(nbTinit, 20, -50, 100, 1);
     SetupNumberBox(nbAmplitude, 5, 0, 50, 1);
-    SetupNumberBox(nbPeriod, 2, 0.1, 1000, 2);
+    SetupNumberBox(nbPeriod, 24, 0.1, 24, 2);
     SetupNumberBox(nbDt, 1, 0.01, 1440, 2);
     SetupNumberBox(nbSteps, 300, 1, 100000, 0);
     cbAutoSubstep.Checked := True;
@@ -303,7 +304,6 @@ procedure TfrmTemp1D.BuildSeries;
 var
   i, N: Integer;
   S: TLineSeries;
-  Title: string;
 begin
   for S in FTimeSeries do
     S.Free;
@@ -312,20 +312,32 @@ begin
   SetLength(FTimeSeries, N);
   for i := 0 to N - 1 do
   begin
+    S := TLineSeries.Create(Self);
+    S.ParentChart := ChartTime;
+    S.SeriesColor := DepthColor(i, N);
+    S.LinePen.Width := 2;
+    S.XValues.Order := loAscending;
+    FTimeSeries[i] := S;
+  end;
+  UpdateSeriesTitles;
+end;
+
+procedure TfrmTemp1D.UpdateSeriesTitles;
+var
+  i, N: Integer;
+  Title: string;
+begin
+  // Legende zeigt die Tiefe der Knoten und muss bei geändertem dx mitziehen
+  N := Length(FTimeSeries);
+  for i := 0 to N - 1 do
+  begin
     Title := Format('Knoten %d (%s cm)',
       [i, FormatFloat('0.##', FModel.NodeDepth(i) * 100)]);
     if i = 0 then
       Title := Title + ' – Rand'
     else if i = N - 1 then
       Title := Title + ' – Rand, konstant';
-
-    S := TLineSeries.Create(Self);
-    S.ParentChart := ChartTime;
-    S.Title := Title;
-    S.SeriesColor := DepthColor(i, N);
-    S.LinePen.Width := 2;
-    S.XValues.Order := loAscending;
-    FTimeSeries[i] := S;
+    FTimeSeries[i].Title := Title;
   end;
 end;
 
@@ -544,6 +556,8 @@ begin
   if FUpdating or (FModel = nil) then
     Exit;
   ReadParams;
+  UpdateSeriesTitles;
+  UpdateProfile;
   UpdateStability;
   UpdateStatus;
   pbSystem.Invalidate;
