@@ -307,7 +307,7 @@ begin
     L.Add('            werden übernommen; eine geänderte Knotenzahl startet neu).');
     L.Add('   Tiefenprofil – aktueller Verlauf sowie Minimum/Maximum je Knoten:');
     L.Add('            zeigt die Dämpfung der Temperaturwelle mit der Tiefe.');
-    L.Add('   Isoplethen – Temperatur als Farbfläche über Tiefe (x) und Zeit (y,');
+    L.Add('   Isoplethen – Temperatur als Farbfläche über Zeit (x) und Tiefe (y,');
     L.Add('            von oben nach unten) mit Isolinien; Werte siehe Farbskala.');
   finally
     L.EndUpdate;
@@ -652,18 +652,20 @@ var
   TimeMax, TimeScale, Step, TickStep, TMin, TMax, V, GX, GY: Double;
   TimeUnit, S: string;
   N, Rows, TextH, PL, PT, PR, PB, PW, PH, X, Y, i, k, r, c, BarL, BarW,
-    LastLabelX, LastLabelY: Integer;
+    LastLabelY: Integer;
   Row: PRGBTripleRow;
   RGBValue: Longint;
 
-  function MapX(GridX: Double): Integer;
+  // Gitter: Spalte = Knoten (Tiefe), Zeile = Zeit.
+  // Diagramm: x = Zeit (nach rechts), y = Tiefe (nach unten).
+  function MapTime(GridRow: Double): Integer;
   begin
-    Result := PL + Round(GridX / (N - 1) * (PW - 1));
+    Result := PL + Round(GridRow / (Rows - 1) * (PW - 1));
   end;
 
-  function MapY(GridY: Double): Integer;
+  function MapDepth(GridCol: Double): Integer;
   begin
-    Result := PT + Round(GridY / (Rows - 1) * (PH - 1));
+    Result := PT + Round(GridCol / (N - 1) * (PH - 1));
   end;
 
 begin
@@ -723,7 +725,7 @@ begin
   end;
 
   // Layout
-  PL := 16 + C.TextWidth('00000');
+  PL := 16 + C.TextWidth('000.00');
   PT := 12 + 2 * TextH + 8;
   BarW := 16;
   PR := W - (24 + BarW + 8 + C.TextWidth('-000.0') + 8);
@@ -744,10 +746,10 @@ begin
   for Y := 0 to PH - 1 do
   begin
     Row := FIsoBitmap.ScanLine[PT + Y];
-    GY := Y / Max(PH - 1, 1) * (Rows - 1);
+    GX := Y / Max(PH - 1, 1) * (N - 1);       // Tiefe
     for X := 0 to PW - 1 do
     begin
-      GX := X / Max(PW - 1, 1) * (N - 1);
+      GY := X / Max(PW - 1, 1) * (Rows - 1);  // Zeit
       V := BilinearValue(G, GX, GY);
       RGBValue := ColorToRGB(Bands[BandIndex(Levels, Step, V)]);
       Row[PL + X].rgbtRed := GetRValue(RGBValue);
@@ -765,8 +767,8 @@ begin
     Segs := ContourSegments(G, Levels[k]);
     for i := 0 to High(Segs) do
     begin
-      C.MoveTo(MapX(Segs[i].X1), MapY(Segs[i].Y1));
-      C.LineTo(MapX(Segs[i].X2), MapY(Segs[i].Y2));
+      C.MoveTo(MapTime(Segs[i].Y1), MapDepth(Segs[i].X1));
+      C.LineTo(MapTime(Segs[i].Y2), MapDepth(Segs[i].X2));
     end;
   end;
 
@@ -775,35 +777,36 @@ begin
   C.Pen.Color := LerpColor(Bg, Fg, 0.6);
   C.Rectangle(PL - 1, PT - 1, PR + 1, PB + 1);
 
-  // x-Achse: Tiefe der Knoten
+  // x-Achse: Zeit
   C.Font.Color := Fg;
-  LastLabelX := -MaxInt;
-  for i := 0 to N - 1 do
+  Ticks := ContourLevels(0, TimeMax * TimeScale,
+    Max(2, PW div (C.TextWidth('0000') + 24)), TickStep);
+  for k := 0 to High(Ticks) do
   begin
-    X := MapX(i);
+    X := PL + Round(Ticks[k] / (TimeMax * TimeScale) * (PW - 1));
     C.MoveTo(X, PB);
     C.LineTo(X, PB + 4);
+    S := FormatFloat('0.##', Ticks[k]);
+    C.TextOut(X - C.TextWidth(S) div 2, PB + 6, S);
+  end;
+  S := 'Zeit (' + TimeUnit + ')';
+  C.TextOut(PL + (PW - C.TextWidth(S)) div 2, PB + 8 + TextH, S);
+
+  // y-Achse: Tiefe der Knoten, 0 oben
+  LastLabelY := -MaxInt;
+  for i := 0 to N - 1 do
+  begin
+    Y := MapDepth(i);
+    C.MoveTo(PL - 4, Y);
+    C.LineTo(PL, Y);
     S := FormatFloat('0.##', FModel.NodeDepth(i) * 100);
-    if X - C.TextWidth(S) div 2 > LastLabelX + 6 then
+    if Y - TextH div 2 > LastLabelY + 2 then
     begin
-      C.TextOut(X - C.TextWidth(S) div 2, PB + 6, S);
-      LastLabelX := X + C.TextWidth(S) div 2;
+      C.TextOut(PL - 6 - C.TextWidth(S), Y - TextH div 2, S);
+      LastLabelY := Y + TextH div 2;
     end;
   end;
   S := 'Tiefe (cm)';
-  C.TextOut(PL + (PW - C.TextWidth(S)) div 2, PB + 8 + TextH, S);
-
-  // y-Achse: Zeit, 0 oben
-  Ticks := ContourLevels(0, TimeMax * TimeScale, Max(2, PH div (3 * TextH)), TickStep);
-  for k := 0 to High(Ticks) do
-  begin
-    Y := PT + Round(Ticks[k] / (TimeMax * TimeScale) * (PH - 1));
-    C.MoveTo(PL - 4, Y);
-    C.LineTo(PL, Y);
-    S := FormatFloat('0.##', Ticks[k]);
-    C.TextOut(PL - 6 - C.TextWidth(S), Y - TextH div 2, S);
-  end;
-  S := 'Zeit (' + TimeUnit + ')';
   C.TextOut(Max(4, PL - C.TextWidth(S) - 6), PT - TextH - 6, S);
 
   // Farbskala: hohe Werte oben

@@ -23,8 +23,8 @@ der letzte Knoten bleibt konstant auf `Tinit`.
 * Oben: Schema des Systems, die Knoten sind nach aktueller Temperatur eingefärbt.
 * Reiter **Zeitverlauf** (T(t) je Knoten), **Tiefenprofil** (aktuelles Profil,
   Minimum/Maximum je Knoten: Dämpfung der Temperaturwelle), **Isoplethen**
-  (Thermoisoplethendiagramm: Farbflächen und Isolinien über Tiefe × Zeit,
-  Zeit nach unten), **Info**.
+  (Thermoisoplethendiagramm: Farbflächen und Isolinien, Zeit auf der x-Achse,
+  Tiefe auf der y-Achse nach unten), **Info**.
 * **Start** setzt zurück und rechnet, **Weiter** rechnet ab dem aktuellen Zustand.
   Die Zeitreihen lassen sich als CSV exportieren.
 
