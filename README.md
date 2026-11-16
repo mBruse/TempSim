@@ -82,6 +82,17 @@ z. B. über GitHub Pages veröffentlichen). Sie bietet zusätzlich Hover-Werte i
 allen Diagrammen, eine Wertetabelle mit CSV-Kopie, die analytische
 Dämpfungs-Einhüllende im Tiefenprofil und einen hellen/dunklen Modus.
 
+### Blackadar-Grenzschicht
+
+`web/blackadar.html` ist ein zweites, eigenständiges Web-Modell: ein
+eindimensionales Grenzschichtmodell nach Blackadar über einen Tagesgang
+(Energiebilanz des Bodens, Corioliskraft und Bodenreibung, tagsüber nichtlokale
+konvektive Durchmischung, nachts schwache lokale Diffusion). Alle Parameter sind
+einstellbar, die Rechnung läuft bei jeder Änderung neu. Gezeigt werden die
+Profile von potentieller Temperatur und Windgeschwindigkeit zum gewählten
+Zeitpunkt (mit Abspielfunktion), ein Zeit-Höhen-Schnitt, die Energiebilanz am
+Boden und Kennzahlen wie Grenzschichthöhe und nächtliches Starkwindband.
+
 ## Bauen
 
 * RAD Studio / Delphi mit VCL und dem mitgelieferten TeeChart Standard

@@ -1,0 +1,886 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Blackadar-Grenzschicht</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;600&display=swap">
+<style>
+/* Layout: Kopfzeile, links Einstellungen, rechts Zeitleiste, zwei Profile (θ | Wind) nebeneinander,
+   Zeit-Höhen-Schnitt, Zeitreihen am Boden und Kennzahlen. Neutrale Flächen wie in Temperatur1D und
+   Sky View Factor; Farbe gehört den Daten: Orange = Wärme, Blau = Wind. */
+:root {
+  --bg: #f3f5f8;
+  --surface: #ffffff;
+  --surface-2: #eef1f5;
+  --ink: #17212b;
+  --ink-2: #44505d;
+  --muted: #6b7682;
+  --line: #dde2e9;
+  --grid: #e8ecf1;
+  --accent: #1d5fae;
+  --accent-ink: #ffffff;
+  --err: #c21f1f;
+  --err-bg: #fbe6e6;
+  --day: #8a5200;      /* Regime-Anzeige: konvektiv */
+  --day-bg: #fbefdf;
+  --night: #1d4f91;    /* Regime-Anzeige: stabil */
+  --night-bg: #e4edf9;
+  --s1: #2a78d6;       /* Datenreihen in fester Reihenfolge: Blau, Orange, Aqua, Gelb */
+  --s2: #eb6834;
+  --s3: #1baf7a;
+  --s4: #eda100;
+  --font-display: "Space Grotesk", "Segoe UI", system-ui, sans-serif;
+  --font-body: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-data: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  --radius: 10px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e1319; --surface: #151c24; --surface-2: #1c252f; --ink: #e5eaf0; --ink-2: #b9c3ce;
+    --muted: #8b97a4; --line: #2a3440; --grid: #222b35; --accent: #6ea6ec; --accent-ink: #0e1319;
+    --err: #f07070; --err-bg: #3a1a1a; --day: #f0a24a; --day-bg: #352512; --night: #8fbaf0; --night-bg: #172a44;
+    --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e1319; --surface: #151c24; --surface-2: #1c252f; --ink: #e5eaf0; --ink-2: #b9c3ce;
+  --muted: #8b97a4; --line: #2a3440; --grid: #222b35; --accent: #6ea6ec; --accent-ink: #0e1319;
+  --err: #f07070; --err-bg: #3a1a1a; --day: #f0a24a; --day-bg: #352512; --night: #8fbaf0; --night-bg: #172a44;
+  --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { margin: 0; }
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font: 14px/1.5 var(--font-body);
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 16px 24px;
+}
+h1, h2, h3 { font-family: var(--font-display); font-weight: 600; text-wrap: balance; margin: 0; }
+button, input, select { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.app { max-width: 1440px; margin: 0 auto; display: grid; gap: 16px; }
+
+/* Kopfzeile */
+.top { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px 24px; }
+.brand { min-width: 0; }
+.brand h1 { font-size: 26px; letter-spacing: -0.01em; }
+.brand p { margin: 2px 0 0; color: var(--muted); max-width: 72ch; }
+.btn {
+  border: 1px solid var(--line); background: var(--surface); color: var(--ink);
+  border-radius: 8px; padding: 8px 16px; font-weight: 500; cursor: pointer;
+}
+.btn:hover { border-color: var(--accent); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+
+.layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; }
+@media (min-width: 980px) { .layout { grid-template-columns: 312px minmax(0, 1fr); align-items: start; } }
+
+/* Einstellungen */
+.panel {
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+  padding: 16px; display: grid; gap: 16px;
+}
+fieldset { border: 0; margin: 0; padding: 0; display: grid; gap: 8px; min-width: 0; }
+legend {
+  padding: 0; margin-bottom: 4px; font-size: 11px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: .08em; color: var(--muted);
+}
+.row { display: grid; grid-template-columns: minmax(0, 1fr) 96px; align-items: center; gap: 8px; }
+.row label { color: var(--ink-2); }
+.row .unit { color: var(--muted); }
+input[type="text"] {
+  width: 100%; min-width: 0; background: var(--surface-2); border: 1px solid var(--line);
+  border-radius: 6px; padding: 6px 8px; text-align: right; font-family: var(--font-data); font-variant-numeric: tabular-nums;
+}
+input.invalid { border-color: var(--err); color: var(--err); }
+.note { font-family: var(--font-data); font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+/* Hauptbereich */
+main { display: grid; gap: 12px; min-width: 0; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); min-width: 0; padding: 14px 16px 16px; display: grid; gap: 10px; align-content: start; }
+.card-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 2px 16px; }
+.card-head h2 { font-size: 16px; }
+.card-head span { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.banner { border-radius: 8px; padding: 10px 14px; background: var(--err-bg); color: var(--err); font-weight: 500; }
+
+/* Zeitleiste */
+.timebar { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 10px 14px; align-items: center; }
+.timebar .btn { min-width: 92px; }
+input[type="range"] { width: 100%; min-width: 0; accent-color: var(--accent); margin: 0; }
+.now { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 22px; font-size: 13px; color: var(--ink-2); }
+.now .clock { font-family: var(--font-display); font-weight: 600; font-size: 22px; color: var(--ink); font-variant-numeric: tabular-nums; line-height: 1.1; }
+.now b { font-family: var(--font-data); font-weight: 500; color: var(--ink); font-variant-numeric: tabular-nums; }
+.pill { display: inline-flex; align-items: center; gap: 6px; border-radius: 999px; padding: 2px 10px; font-weight: 600; font-size: 12px; }
+.pill::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+.pill.day { background: var(--day-bg); color: var(--day); }
+.pill.night { background: var(--night-bg); color: var(--night); }
+
+.pair { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
+@media (min-width: 720px) { .pair { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.chart { position: relative; min-width: 0; }
+.chart canvas { display: block; width: 100%; touch-action: pan-y; }
+.chart.profile canvas { height: clamp(300px, 52vh, 440px); }
+.chart.section canvas { height: clamp(240px, 40vh, 340px); cursor: crosshair; }
+.chart.series canvas { height: 220px; cursor: crosshair; }
+
+.legend { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 0; padding: 0; list-style: none; color: var(--ink-2); font-size: 13px; }
+.legend li { display: inline-flex; align-items: center; gap: 6px; }
+.legend label { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+.legend input { accent-color: var(--accent); }
+.key { width: 16px; height: 2px; border-radius: 1px; display: inline-block; flex: none; }
+.key.thick { height: 4px; background: var(--ink); }
+.key.dash { height: 0; border-top: 2px dashed var(--muted); }
+.k1 { background: var(--s1); } .k2 { background: var(--s2); } .k3 { background: var(--s3); } .k4 { background: var(--s4); }
+
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.seg button { border: 0; background: var(--surface); padding: 4px 12px; cursor: pointer; font-size: 13px; color: var(--ink-2); }
+.seg button + button { border-left: 1px solid var(--line); }
+.seg button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }
+
+.cbar { display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: 10px; align-items: start; max-width: 420px; }
+.cbar-title { font-size: 12px; color: var(--ink-2); line-height: 12px; white-space: nowrap; }
+.cbar-grad { height: 12px; border-radius: 3px; border: 1px solid var(--line); }
+.cbar-ticks { grid-column: 2; position: relative; height: 16px; margin-top: 3px; font: 11px var(--font-data); color: var(--muted); font-variant-numeric: tabular-nums; }
+.cbar-ticks span { position: absolute; top: 0; white-space: nowrap; }
+
+.tooltip {
+  position: absolute; pointer-events: none; background: var(--surface); border: 1px solid var(--line);
+  border-radius: 8px; padding: 8px 10px; font-size: 12px; box-shadow: 0 4px 16px rgb(0 0 0 / .12);
+  min-width: 150px; z-index: 5; white-space: nowrap;
+}
+.tooltip .tt-title { color: var(--muted); margin-bottom: 4px; font-variant-numeric: tabular-nums; }
+.tooltip .tt-row { display: grid; grid-template-columns: 16px minmax(0, 1fr) auto; align-items: center; gap: 8px; }
+.tooltip .tt-row span:nth-child(2) { color: var(--ink-2); }
+.tooltip .tt-row b { font-family: var(--font-data); font-weight: 500; font-variant-numeric: tabular-nums; text-align: right; }
+
+dl.kv { margin: 0; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 16px; }
+dl.kv dt { color: var(--ink-2); }
+dl.kv dd { margin: 0; text-align: right; font-family: var(--font-data); font-variant-numeric: tabular-nums; }
+.hint { margin: 0; color: var(--muted); font-size: 12px; max-width: 80ch; }
+
+details.info { color: var(--ink-2); }
+details.info summary { cursor: pointer; font-family: var(--font-display); font-weight: 600; color: var(--ink); font-size: 15px; }
+details.info .body { display: grid; gap: 10px; max-width: 72ch; margin-top: 10px; }
+details.info p { margin: 0; }
+.formula { font-family: var(--font-data); background: var(--surface-2); border-radius: 6px; padding: 8px 12px; color: var(--ink); overflow-x: auto; white-space: nowrap; }
+
+.status {
+  display: flex; flex-wrap: wrap; gap: 4px 24px; color: var(--muted); font-size: 12px;
+  font-family: var(--font-data); font-variant-numeric: tabular-nums;
+}
+.status b { color: var(--ink-2); font-weight: 500; }
+
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <div class="brand">
+      <h1>Blackadar-Grenzschicht</h1>
+      <p>Eindimensionales Modell der atmosphärischen Grenzschicht über einen Tagesgang: tagsüber mischen Thermikblasen vom Boden aus die ganze Schicht durch, nachts entkoppelt sich die Luft vom Boden und in der Höhe entsteht ein Starkwindband (Low-Level-Jet).</p>
+    </div>
+    <button class="btn" id="btReset" type="button">Standardwerte</button>
+  </header>
+
+  <div class="layout">
+    <aside class="panel" aria-label="Modelleinstellungen">
+      <fieldset>
+        <legend>Antrieb</legend>
+        <div class="row"><label for="fUg">Geostrophischer Wind u<sub>g</sub> <span class="unit">(m/s)</span></label><input type="text" inputmode="decimal" id="fUg"></div>
+        <div class="row"><label for="fVg">Geostrophischer Wind v<sub>g</sub> <span class="unit">(m/s)</span></label><input type="text" inputmode="decimal" id="fVg"></div>
+        <div class="row"><label for="fF">Coriolisparameter f <span class="unit">(10⁻⁴ s⁻¹)</span></label><input type="text" inputmode="decimal" id="fF"></div>
+        <div class="row"><label for="fSmax">Einstrahlung mittags <span class="unit">(W/m²)</span></label><input type="text" inputmode="decimal" id="fSmax"></div>
+        <div class="row"><label for="fRl">Langwellige Abstrahlung <span class="unit">(W/m²)</span></label><input type="text" inputmode="decimal" id="fRl"></div>
+        <div class="note" id="forceNote"></div>
+      </fieldset>
+      <fieldset>
+        <legend>Boden</legend>
+        <div class="row"><label for="fCd">Widerstandsbeiwert c<sub>d</sub></label><input type="text" inputmode="decimal" id="fCd"></div>
+        <div class="row"><label for="fCs">Wärmekapazität c<sub>s</sub> <span class="unit">(kJ/(m²·K))</span></label><input type="text" inputmode="decimal" id="fCs"></div>
+      </fieldset>
+      <fieldset>
+        <legend>Turbulenz</legend>
+        <div class="row"><label for="fAlpha">Mischrate tags <span class="unit">(1/min)</span></label><input type="text" inputmode="decimal" id="fAlpha"></div>
+        <div class="row"><label for="fKm">Austausch nachts K <span class="unit">(m²/s)</span></label><input type="text" inputmode="decimal" id="fKm"></div>
+      </fieldset>
+      <fieldset>
+        <legend>Anfangszustand (Mitternacht)</legend>
+        <div class="row"><label for="fTg">Bodentemperatur T<sub>g</sub> <span class="unit">(K)</span></label><input type="text" inputmode="decimal" id="fTg"></div>
+        <div class="row"><label for="fTh0">θ am Boden <span class="unit">(K)</span></label><input type="text" inputmode="decimal" id="fTh0"></div>
+        <div class="row"><label for="fGamma">Schichtung dθ/dz <span class="unit">(K/km)</span></label><input type="text" inputmode="decimal" id="fGamma"></div>
+      </fieldset>
+      <fieldset>
+        <legend>Gitter und Zeit</legend>
+        <div class="row"><label for="fNz">Anzahl Schichten</label><input type="text" inputmode="numeric" id="fNz"></div>
+        <div class="row"><label for="fDz">Schichtdicke dz <span class="unit">(m)</span></label><input type="text" inputmode="decimal" id="fDz"></div>
+        <div class="row"><label for="fDt">Zeitschritt dt <span class="unit">(s)</span></label><input type="text" inputmode="decimal" id="fDt"></div>
+        <div class="row"><label for="fHours">Dauer <span class="unit">(h)</span></label><input type="text" inputmode="decimal" id="fHours"></div>
+        <div class="note" id="gridNote"></div>
+      </fieldset>
+    </aside>
+
+    <main>
+      <div class="banner" id="banner" role="alert" hidden></div>
+
+      <section class="card" aria-label="Zeit">
+        <div class="timebar">
+          <button class="btn primary" id="btPlay" type="button">Abspielen</button>
+          <input type="range" id="fTime" min="0" max="1" step="1" value="0" aria-label="Zeitpunkt">
+          <div class="now" aria-live="off">
+            <span class="clock" id="clock"></span>
+            <span class="pill" id="regime"></span>
+            <span>Grenzschichthöhe <b id="nowPbl"></b></span>
+            <span>Boden T<sub>g</sub> <b id="nowTg"></b></span>
+            <span>Wärmestrom H <b id="nowH"></b></span>
+          </div>
+        </div>
+      </section>
+
+      <div class="pair">
+        <section class="card" aria-label="Profil der potentiellen Temperatur">
+          <div class="card-head"><h2>Potentielle Temperatur</h2><span>θ über der Höhe</span></div>
+          <div class="chart profile"><canvas id="cvTheta" role="img" aria-label="Profil der potentiellen Temperatur"></canvas><div class="tooltip" id="ttTheta" hidden></div></div>
+        </section>
+        <section class="card" aria-label="Profil der Windgeschwindigkeit">
+          <div class="card-head"><h2>Windgeschwindigkeit</h2><span id="headWind"></span></div>
+          <div class="chart profile"><canvas id="cvWind" role="img" aria-label="Profil der Windgeschwindigkeit"></canvas><div class="tooltip" id="ttWind" hidden></div></div>
+        </section>
+      </div>
+      <ul class="legend" aria-label="Legende der Profile">
+        <li><span class="key thick"></span>gewählte Zeit</li>
+        <li><span class="key k1"></span>03:00</li>
+        <li><span class="key k2"></span>09:00</li>
+        <li><span class="key k3"></span>15:00</li>
+        <li><span class="key k4"></span>21:00</li>
+        <li><span class="key dash"></span>geostrophisch</li>
+        <li><label><input type="checkbox" id="fGhosts" checked> feste Vergleichszeiten zeigen</label></li>
+      </ul>
+
+      <section class="card" aria-label="Zeit-Höhen-Schnitt">
+        <div class="card-head">
+          <h2>Zeit-Höhen-Schnitt</h2>
+          <div class="seg" role="group" aria-label="Größe im Zeit-Höhen-Schnitt">
+            <button type="button" id="segTheta" aria-pressed="true">θ</button>
+            <button type="button" id="segWind" aria-pressed="false">Wind</button>
+          </div>
+        </div>
+        <div class="chart section"><canvas id="cvSection" role="img" aria-label="Zeit-Höhen-Schnitt"></canvas><div class="tooltip" id="ttSection" hidden></div></div>
+        <div class="cbar"><span class="cbar-title" id="cbarTitle"></span><div class="cbar-grad" id="cbarGrad"></div><div class="cbar-ticks" id="cbarTicks"></div></div>
+        <p class="hint">Die Linie zeigt die Obergrenze der durchmischten Schicht. Klicken oder Ziehen wählt den Zeitpunkt.</p>
+      </section>
+
+      <div class="pair">
+        <section class="card" aria-label="Energiebilanz am Boden">
+          <div class="card-head"><h2>Energiebilanz am Boden</h2><span>W/m²</span></div>
+          <div class="chart series"><canvas id="cvEnergy" role="img" aria-label="Energieflüsse am Boden über die Zeit"></canvas><div class="tooltip" id="ttEnergy" hidden></div></div>
+          <ul class="legend">
+            <li><span class="key k4"></span>Einstrahlung S</li>
+            <li><span class="key k1"></span>Abstrahlung L</li>
+            <li><span class="key k2"></span>fühlbarer Wärmestrom H</li>
+          </ul>
+        </section>
+        <section class="card" aria-label="Temperaturen am Boden">
+          <div class="card-head"><h2>Boden und unterste Luftschicht</h2><span>K</span></div>
+          <div class="chart series"><canvas id="cvTemp" role="img" aria-label="Bodentemperatur und potentielle Temperatur der untersten Schicht über die Zeit"></canvas><div class="tooltip" id="ttTemp" hidden></div></div>
+          <ul class="legend">
+            <li><span class="key k2"></span><span>Bodentemperatur T<sub>g</sub></span></li>
+            <li><span class="key k1"></span>θ der untersten Schicht</li>
+          </ul>
+        </section>
+      </div>
+
+      <section class="card" aria-label="Kennzahlen">
+        <div class="card-head"><h2>Kennzahlen des Laufs</h2></div>
+        <dl class="kv" id="stats"></dl>
+      </section>
+
+      <section class="card">
+        <details class="info">
+          <summary>Modell</summary>
+          <div class="body">
+            <p>Die Luftsäule besteht aus gleich dicken Schichten. Je Schicht werden die potentielle Temperatur θ und die Windkomponenten u und v gerechnet, am Boden die Temperatur T<sub>g</sub> einer dünnen Platte mit der Wärmekapazität c<sub>s</sub>. Start ist Mitternacht mit stabiler Schichtung.</p>
+            <p>Der Boden gewinnt Sonnenstrahlung S (Sinusbogen von 6 bis 18 Uhr), verliert langwellig L und gibt den fühlbaren Wärmestrom H an die unterste Luftschicht ab:</p>
+            <div class="formula">c<sub>s</sub> · dT<sub>g</sub>/dt = S − L − H,   H = ρ · c<sub>p</sub> · c<sub>d</sub> · |V₁| · (T<sub>g</sub> − θ₁)</div>
+            <p>Der Wind dreht unter Corioliskraft um den geostrophischen Wind, die unterste Schicht wird zusätzlich durch Bodenreibung gebremst:</p>
+            <div class="formula">du/dt = f · (v − v<sub>g</sub>),   dv/dt = −f · (u − u<sub>g</sub>)</div>
+            <p>Das Vorzeichen von H schaltet das Regime. Bei H &gt; 0 (konvektiv) steigt Luft aus der untersten Schicht bis dorthin auf, wo sie nicht mehr wärmer als die Umgebung ist. Mit jeder Schicht darunter tauscht die unterste Schicht direkt Wärme und Impuls aus, ohne Umweg über die Nachbarschichten. Das ist der nichtlokale Ansatz nach Blackadar. Bei H ≤ 0 (stabil) bleibt nur schwache Diffusion mit festem Austauschkoeffizienten K zwischen benachbarten Schichten.</p>
+            <p>Nach Sonnenuntergang fehlt deshalb oberhalb des Bodens fast jede Reibung. Der Wind, der tagsüber unter dem geostrophischen Wert lag, schwingt mit der Trägheitsperiode 2π/f um ihn herum und überschießt ihn einige Stunden später. So entsteht das nächtliche Starkwindband.</p>
+            <p>Die Rechnung ist ein stark vereinfachtes Lehrbeispiel: konstante Luftdichte, kein Wasserdampf, keine Strahlung in der Luft, feste Mischrate, und im konvektiven Regime wird nur die u-Komponente durchmischt.</p>
+          </div>
+        </details>
+      </section>
+
+      <div class="status" id="status" aria-live="polite"></div>
+    </main>
+  </div>
+</div>
+
+<script>
+"use strict";
+
+/* <model> */
+/* ---------- Rechenkern: Blackadar-Grenzschicht, 1D ---------- */
+// p: nz, dz (m), dt (s), f (1/s), ug, vg (m/s), cd, cs (J/(m²·K)), smax, rlong (W/m²),
+//    alpha (Mischrate je Minute), km (m²/s), tg0, th0 (K), gamma (K/m), hours
+// Ausgabe etwa alle 5 Minuten: Profile TH, U, V (nOut × nz) und Zeitreihen am Boden.
+function runModel(p) {
+  const RHO = 1.2, CP = 1004;
+  const nz = p.nz, dz = p.dz, dt = p.dt;
+  const steps = Math.max(1, Math.round(p.hours * 3600 / dt));
+  const stride = Math.max(1, Math.round(300 / dt));
+  const nOut = Math.floor(steps / stride) + 1;
+  const z = new Float64Array(nz);
+  let th = new Float64Array(nz), u = new Float64Array(nz), v = new Float64Array(nz);
+  let thn = new Float64Array(nz), un = new Float64Array(nz), vn = new Float64Array(nz);
+  for (let k = 0; k < nz; k++) {
+    z[k] = (k + 0.5) * dz;
+    th[k] = p.th0 + p.gamma * z[k];
+    u[k] = p.ug * (1 - Math.exp(-z[k] / 300));
+    v[k] = 2 * Math.exp(-z[k] / 300);
+  }
+  let tg = p.tg0;
+  const out = {
+    nz, dz, dt, stride, steps, z, n: 0, unstable: false,
+    t: new Float64Array(nOut), TH: new Float32Array(nOut * nz), U: new Float32Array(nOut * nz), V: new Float32Array(nOut * nz),
+    tg: new Float64Array(nOut), hf: new Float64Array(nOut), sol: new Float64Array(nOut), pbl: new Float64Array(nOut)
+  };
+  const store = (hour, solar, hflux, top) => {
+    const i = out.n++;
+    out.t[i] = hour; out.tg[i] = tg; out.hf[i] = hflux; out.sol[i] = solar; out.pbl[i] = top * dz;
+    out.TH.set(th, i * nz); out.U.set(u, i * nz); out.V.set(v, i * nz);
+  };
+  store(0, 0, RHO * CP * p.cd * (Math.hypot(u[0], v[0]) + 0.5) * (tg - th[0]), 0);
+
+  const alpha = p.alpha * dt / 60, r = dt * p.km / (dz * dz);
+  for (let step = 1; step <= steps; step++) {
+    const hour = step * dt / 3600, hod = hour % 24;
+
+    // 1. Energiebilanz des Bodens
+    const solar = hod > 6 && hod < 18 ? p.smax * Math.sin(Math.PI * (hod - 6) / 12) : 0;
+    const wspd = Math.hypot(u[0], v[0]) + 0.5;
+    const hflux = RHO * CP * p.cd * wspd * (tg - th[0]);
+    tg += dt * (solar - p.rlong - hflux) / p.cs;
+
+    // 2. Corioliskraft und Bodenreibung
+    for (let k = 0; k < nz; k++) {
+      un[k] = u[k] + dt * p.f * (v[k] - p.vg);
+      vn[k] = v[k] - dt * p.f * (u[k] - p.ug);
+      thn[k] = th[k];
+    }
+    un[0] -= dt * p.cd * wspd * u[0] / dz;
+    vn[0] -= dt * p.cd * wspd * v[0] / dz;
+    thn[0] += dt * hflux / (RHO * CP * dz);
+
+    // 3. Regime nach dem Vorzeichen des Wärmestroms
+    let top = 0;
+    if (hflux > 0) {
+      // konvektiv: Thermik aus der untersten Schicht tauscht direkt mit jeder Schicht bis zur Obergrenze
+      for (let k = 1; k < nz; k++) { if (thn[0] > thn[k]) top = k; else break; }
+      for (let k = 1; k <= top; k++) {
+        const dth = alpha * (thn[0] - thn[k]);
+        thn[k] += dth; thn[0] -= dth;
+        const du = alpha * (un[0] - un[k]);
+        un[k] += du; un[0] -= du;
+      }
+      top += 1;                                  // Obergrenze der obersten durchmischten Schicht
+    } else {
+      // stabil: schwache lokale Diffusion zwischen Nachbarschichten
+      for (let k = 1; k < nz - 1; k++) {
+        thn[k] += r * (th[k + 1] - 2 * th[k] + th[k - 1]);
+        un[k] += r * (u[k + 1] - 2 * u[k] + u[k - 1]);
+        vn[k] += r * (v[k + 1] - 2 * v[k] + v[k - 1]);
+      }
+    }
+    let s = th; th = thn; thn = s; s = u; u = un; un = s; s = v; v = vn; vn = s;
+
+    let ok = Number.isFinite(tg) && Math.abs(tg) < 1e4;
+    for (let k = 0; ok && k < nz; k++) ok = Math.abs(th[k]) < 1e4 && Math.abs(u[k]) < 1e4 && Math.abs(v[k]) < 1e4;
+    if (!ok) { out.unstable = true; break; }
+    if (step % stride === 0) store(hour, solar, hflux, top);
+  }
+  return out;
+}
+/* </model> */
+
+/* ---------- Zahlen ---------- */
+const fmt = (v, dec = 2, fixed = false) => {
+  if (!Number.isFinite(v)) return "–";
+  return v.toLocaleString("de-DE", { maximumFractionDigits: dec, minimumFractionDigits: fixed ? dec : 0, useGrouping: false });
+};
+const fmtInt = v => Math.round(v).toLocaleString("de-DE");
+function parseNumber(s) {
+  s = String(s).trim().replace(",", ".");
+  if (s === "" || !/^[-+]?(\d+\.?\d*|\.\d+)$/.test(s)) return NaN;
+  return Number(s);
+}
+function clockText(h) {
+  const m = Math.round(h * 60), d = Math.floor(m / 1440), r = m - d * 1440;
+  const hm = `${String(Math.floor(r / 60)).padStart(2, "0")}:${String(r % 60).padStart(2, "0")}`;
+  return res && res.t[res.n - 1] > 24.001 ? `Tag ${d + 1}, ${hm}` : (d > 0 && r === 0 ? "24:00" : hm);
+}
+
+/* ---------- Eingabefelder ---------- */
+const FIELDS = {
+  fUg:    { min: -50,    max: 50,   dec: 1, def: 10 },
+  fVg:    { min: -50,    max: 50,   dec: 1, def: 0 },
+  fF:     { min: 0,      max: 2,    dec: 2, def: 1 },
+  fSmax:  { min: 0,      max: 1200, dec: 0, def: 550 },
+  fRl:    { min: 0,      max: 400,  dec: 0, def: 75 },
+  fCd:    { min: 0.0001, max: 0.02, dec: 4, def: 0.002 },
+  fCs:    { min: 5,      max: 2000, dec: 0, def: 25 },
+  fAlpha: { min: 0,      max: 0.9,  dec: 2, def: 0.15 },
+  fKm:    { min: 0,      max: 50,   dec: 1, def: 1.5 },
+  fTg:    { min: 230,    max: 330,  dec: 1, def: 285 },
+  fTh0:   { min: 230,    max: 330,  dec: 1, def: 286 },
+  fGamma: { min: 0,      max: 20,   dec: 1, def: 4 },
+  fNz:    { min: 5,      max: 100,  dec: 0, def: 30 },
+  fDz:    { min: 10,     max: 500,  dec: 0, def: 100 },
+  fDt:    { min: 1,      max: 600,  dec: 0, def: 60 },
+  fHours: { min: 6,      max: 240,  dec: 0, def: 24 }
+};
+const $ = id => document.getElementById(id);
+function fieldValue(id) {
+  const f = FIELDS[id], el = $(id), v = parseNumber(el.value);
+  const valid = Number.isFinite(v) && v >= f.min && v <= f.max;
+  el.classList.toggle("invalid", !valid);
+  el.setAttribute("aria-invalid", String(!valid));
+  const out = Number.isFinite(v) ? Math.min(f.max, Math.max(f.min, v)) : f.def;
+  return f.dec === 0 ? Math.round(out) : out;
+}
+function setField(id, v) { $(id).value = fmt(v, FIELDS[id].dec); $(id).classList.remove("invalid"); }
+function readParams() {
+  return {
+    ug: fieldValue("fUg"), vg: fieldValue("fVg"), f: fieldValue("fF") * 1e-4,
+    smax: fieldValue("fSmax"), rlong: fieldValue("fRl"), cd: fieldValue("fCd"), cs: fieldValue("fCs") * 1000,
+    alpha: fieldValue("fAlpha"), km: fieldValue("fKm"),
+    tg0: fieldValue("fTg"), th0: fieldValue("fTh0"), gamma: fieldValue("fGamma") / 1000,
+    nz: fieldValue("fNz"), dz: fieldValue("fDz"), dt: fieldValue("fDt"), hours: fieldValue("fHours")
+  };
+}
+
+/* ---------- Zustand ---------- */
+let par = null;           // Parameter des aktuellen Laufs
+let res = null;           // Ergebnis von runModel
+let SP = null;            // Windgeschwindigkeit, nOut × nz
+let ti = 0;               // gewählter Ausgabezeitpunkt
+let dom = null;           // Wertebereiche für feste Achsen
+let sectionVar = "theta";
+let hoverK = null;        // Schicht unter dem Zeiger (Profile)
+let hoverT = null;        // Zeitindex unter dem Zeiger (Zeitachsen)
+let hoverZ = null;        // Schicht unter dem Zeiger (Schnitt)
+let playing = false;
+const offSection = document.createElement("canvas");
+const GHOST_HOURS = [3, 9, 15, 21];
+
+/* ---------- Farben ---------- */
+function css(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+function isDark() {
+  const t = document.documentElement.getAttribute("data-theme");
+  if (t === "dark") return true;
+  if (t === "light") return false;
+  return matchMedia("(prefers-color-scheme: dark)").matches;
+}
+function hexToRgb(h) { const n = parseInt(h.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; }
+function rampRgb(stops, f) {
+  f = Math.min(1, Math.max(0, f));
+  const p = f * (stops.length - 1), k = Math.min(Math.floor(p), stops.length - 2), g = p - k;
+  return [0, 1, 2].map(i => Math.round(stops[k][i] + (stops[k + 1][i] - stops[k][i]) * g));
+}
+// je ein Farbton, im hellen Thema hell = niedrig, im dunklen Thema dunkel = niedrig
+const RAMPS = {
+  theta: ["#fbe3d3", "#f8c9aa", "#f1976a", "#e0672f", "#b0461a", "#6e2609"].map(hexToRgb),
+  wind: ["#e3eefc", "#b7d3f6", "#86b6ef", "#3987e5", "#1c5cab", "#0d366b"].map(hexToRgb)
+};
+function ramp() { const r = RAMPS[sectionVar]; return isDark() ? r.slice().reverse() : r; }
+
+/* ---------- Diagramm-Grundgerüst ---------- */
+function niceStep(span, maxTicks) {
+  const raw = span / Math.max(1, maxTicks), mag = Math.pow(10, Math.floor(Math.log10(raw)));
+  for (const f of [1, 2, 5, 10]) if (f * mag >= raw) return f * mag;
+  return 10 * mag;
+}
+function ticks(a, b, maxTicks, steps) {
+  let step = niceStep(b - a, maxTicks);
+  if (steps) step = steps.find(s => (b - a) / s <= maxTicks) || steps[steps.length - 1];
+  const out = [];
+  for (let v = Math.ceil(a / step - 1e-9) * step; v <= b + step * 1e-9; v += step) out.push(Math.abs(v) < step * 1e-9 ? 0 : v);
+  const dec = Math.max(0, -Math.floor(Math.log10(step) + 1e-9));
+  return { values: out, dec };
+}
+// o: x, y = [min, max]; xLabel, yLabel; series [{xs, ys, color, width, dash, halo}]; vlines/hlines [{v, color, dash, width}];
+//    dots [{x, y, color}]; image (füllt die Zeichenfläche); timeAxis
+function plot(cv, o) {
+  const dpr = window.devicePixelRatio || 1, W = cv.clientWidth, H = cv.clientHeight;
+  if (!W || !H) return null;
+  const pw = Math.round(W * dpr), ph = Math.round(H * dpr);
+  if (cv.width !== pw || cv.height !== ph) { cv.width = pw; cv.height = ph; }
+  const ctx = cv.getContext("2d");
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, W, H);
+  const x0 = 56, x1 = W - 14, y0 = H - 40, y1 = 10;
+  const sx = v => x0 + (v - o.x[0]) / (o.x[1] - o.x[0]) * (x1 - x0);
+  const sy = v => y0 + (v - o.y[0]) / (o.y[1] - o.y[0]) * (y1 - y0);
+  const muted = css("--muted"), grid = css("--grid"), line = css("--line"), surface = css("--surface");
+  const xt = ticks(o.x[0], o.x[1], Math.max(2, Math.floor((x1 - x0) / 64)), o.timeAxis ? [1, 2, 3, 6, 12, 24, 48] : null);
+  const yt = ticks(o.y[0], o.y[1], Math.max(2, Math.floor((y0 - y1) / 40)));
+
+  if (o.image) { ctx.imageSmoothingEnabled = false; ctx.drawImage(o.image, x0, y1, x1 - x0, y0 - y1); }
+  ctx.lineWidth = 1;
+  if (!o.image) {
+    ctx.strokeStyle = grid; ctx.beginPath();
+    for (const v of xt.values) { const x = Math.round(sx(v)) + 0.5; ctx.moveTo(x, y1); ctx.lineTo(x, y0); }
+    for (const v of yt.values) { const y = Math.round(sy(v)) + 0.5; ctx.moveTo(x0, y); ctx.lineTo(x1, y); }
+    ctx.stroke();
+  }
+  ctx.strokeStyle = line; ctx.strokeRect(x0 + 0.5, y1 + 0.5, x1 - x0 - 1, y0 - y1 - 1);
+
+  ctx.fillStyle = muted; ctx.font = `11px ${css("--font-data")}`;
+  ctx.textAlign = "center"; ctx.textBaseline = "top";
+  for (const v of xt.values) ctx.fillText(fmt(v, xt.dec, true), sx(v), y0 + 5);
+  ctx.textAlign = "right"; ctx.textBaseline = "middle";
+  for (const v of yt.values) ctx.fillText(fmt(v, yt.dec, true), x0 - 6, sy(v));
+  ctx.font = `12px ${css("--font-body")}`; ctx.textAlign = "center"; ctx.textBaseline = "bottom";
+  if (o.xLabel) ctx.fillText(o.xLabel, (x0 + x1) / 2, H - 2);
+  if (o.yLabel) { ctx.save(); ctx.translate(12, (y0 + y1) / 2); ctx.rotate(-Math.PI / 2); ctx.textBaseline = "middle"; ctx.fillText(o.yLabel, 0, 0); ctx.restore(); }
+
+  ctx.save();
+  ctx.beginPath(); ctx.rect(x0, y1, x1 - x0, y0 - y1); ctx.clip();
+  const rule = (l, vertical) => {
+    ctx.beginPath(); ctx.setLineDash(l.dash || []); ctx.lineWidth = l.width || 1; ctx.strokeStyle = l.color;
+    if (vertical) { const x = sx(l.v); ctx.moveTo(x, y1); ctx.lineTo(x, y0); } else { const y = sy(l.v); ctx.moveTo(x0, y); ctx.lineTo(x1, y); }
+    ctx.stroke(); ctx.setLineDash([]);
+  };
+  for (const l of o.vlines || []) rule(l, true);
+  for (const l of o.hlines || []) rule(l, false);
+  ctx.lineJoin = "round"; ctx.lineCap = "round";
+  for (const s of o.series || []) {
+    const path = () => { ctx.beginPath(); for (let i = 0; i < s.xs.length; i++) { const x = sx(s.xs[i]), y = sy(s.ys[i]); if (i) ctx.lineTo(x, y); else ctx.moveTo(x, y); } };
+    if (s.halo) { path(); ctx.lineWidth = (s.width || 2) + 3; ctx.strokeStyle = s.halo; ctx.stroke(); }
+    path(); ctx.setLineDash(s.dash || []); ctx.lineWidth = s.width || 2; ctx.strokeStyle = s.color; ctx.stroke(); ctx.setLineDash([]);
+  }
+  ctx.restore();
+  for (const d of o.dots || []) {
+    const x = sx(d.x), y = sy(d.y);
+    if (x < x0 - 1 || x > x1 + 1 || y < y1 - 1 || y > y0 + 1) continue;
+    ctx.beginPath(); ctx.arc(x, y, 4.5, 0, 2 * Math.PI); ctx.fillStyle = d.color; ctx.fill();
+    ctx.lineWidth = 2; ctx.strokeStyle = surface; ctx.stroke();
+  }
+  cv._g = { x0, x1, y0, y1, o };
+  return cv._g;
+}
+
+/* ---------- Abgeleitete Größen ---------- */
+function ghostIndex(hour) {
+  const day = Math.floor(res.t[ti] / 24 - 1e-9), i = Math.round((Math.max(0, day) * 24 + hour) * 3600 / (res.dt * res.stride));
+  return i < res.n && Math.abs(res.t[i] - (Math.max(0, day) * 24 + hour)) < 0.05 ? i : -1;
+}
+function ghosts() {
+  if (!$("fGhosts").checked) return [];
+  return GHOST_HOURS.map((h, j) => ({ h, i: ghostIndex(h), color: css(`--s${j + 1}`), key: `k${j + 1}` })).filter(g => g.i >= 0);
+}
+function prepare() {
+  const nz = res.nz, n = res.n;
+  SP = new Float32Array(n * nz);
+  let thMin = Infinity, thMax = -Infinity, spMax = 0;
+  for (let i = 0; i < n * nz; i++) {
+    SP[i] = Math.hypot(res.U[i], res.V[i]);
+    if (res.TH[i] < thMin) thMin = res.TH[i];
+    if (res.TH[i] > thMax) thMax = res.TH[i];
+    if (SP[i] > spMax) spMax = SP[i];
+  }
+  let tMin = Infinity, tMax = -Infinity, eMin = 0, eMax = Math.max(par.smax, par.rlong, 1);
+  for (let i = 0; i < n; i++) {
+    tMin = Math.min(tMin, res.tg[i], res.TH[i * nz]); tMax = Math.max(tMax, res.tg[i], res.TH[i * nz]);
+    eMin = Math.min(eMin, res.hf[i]); eMax = Math.max(eMax, res.hf[i]);
+  }
+  const pad = (a, b, f) => { const d = Math.max(b - a, 1e-6) * f; return [a - d, b + d]; };
+  const g = Math.hypot(par.ug, par.vg);
+  dom = {
+    th: pad(thMin, thMax, 0.04), thRaw: [thMin, thMax],
+    sp: [0, Math.max(spMax, g, 0.5) * 1.06], spRaw: [0, Math.max(spMax, 0.5)],
+    z: [0, nz * res.dz], t: [0, Math.max(res.t[n - 1], 1e-6)],
+    temp: pad(tMin, tMax, 0.06), energy: pad(eMin, eMax, 0.06)
+  };
+}
+
+/* ---------- Zeit-Höhen-Schnitt: 1 Pixel je Ausgabezeit und Schicht ---------- */
+function paintSection() {
+  const nz = res.nz, n = res.n, data = sectionVar === "theta" ? res.TH : SP;
+  const [a, b] = sectionVar === "theta" ? dom.thRaw : dom.spRaw, span = Math.max(b - a, 1e-9);
+  offSection.width = n; offSection.height = nz;
+  const ctx = offSection.getContext("2d"), img = ctx.createImageData(n, nz), d = img.data, stops = ramp();
+  const table = new Uint8Array(256 * 3);
+  for (let i = 0; i < 256; i++) table.set(rampRgb(stops, i / 255), i * 3);
+  for (let i = 0; i < n; i++) for (let k = 0; k < nz; k++) {
+    const c = Math.round(255 * Math.min(1, Math.max(0, (data[i * nz + k] - a) / span))) * 3, o = ((nz - 1 - k) * n + i) * 4;
+    d[o] = table[c]; d[o + 1] = table[c + 1]; d[o + 2] = table[c + 2]; d[o + 3] = 255;
+  }
+  ctx.putImageData(img, 0, 0);
+  const rgb = c => `rgb(${c[0]},${c[1]},${c[2]})`;
+  $("cbarGrad").style.background = `linear-gradient(to right, ${stops.map((c, i) => `${rgb(c)} ${(100 * i / (stops.length - 1)).toFixed(1)}%`).join(", ")})`;
+  $("cbarTitle").textContent = sectionVar === "theta" ? "θ (K)" : "Wind (m/s)";
+  const el = $("cbarTicks");
+  el.innerHTML = "";
+  [[0, a], [0.5, (a + b) / 2], [1, b]].forEach(([p, v], i) => {
+    const s = document.createElement("span");
+    s.textContent = fmt(v, 1, true); s.style.left = `${p * 100}%`;
+    s.style.transform = i === 0 ? "none" : i === 2 ? "translateX(-100%)" : "translateX(-50%)";
+    el.appendChild(s);
+  });
+}
+
+/* ---------- Zeichnen ---------- */
+let drawQueued = false;
+function requestDraw() {
+  if (drawQueued) return;
+  drawQueued = true;
+  requestAnimationFrame(() => { drawQueued = false; drawAll(); });
+}
+function column(data, i) { return data.subarray(i * res.nz, (i + 1) * res.nz); }
+function drawProfile(cv, data, xDom, xLabel, refs) {
+  const ink = css("--ink"), gs = ghosts();
+  const series = gs.map(g => ({ xs: column(data, g.i), ys: res.z, color: g.color, width: 2 }));
+  series.push({ xs: column(data, ti), ys: res.z, color: ink, width: 3, halo: css("--surface") });
+  const hlines = [], dots = [];
+  if (res.pbl[ti] > 0) hlines.push({ v: res.pbl[ti], color: css("--muted"), dash: [2, 3] });
+  if (hoverK != null) {
+    hlines.push({ v: res.z[hoverK], color: css("--muted") });
+    for (const g of gs) dots.push({ x: data[g.i * res.nz + hoverK], y: res.z[hoverK], color: g.color });
+    dots.push({ x: data[ti * res.nz + hoverK], y: res.z[hoverK], color: ink });
+  }
+  plot(cv, { x: xDom, y: dom.z, xLabel, yLabel: "Höhe (m)", series, vlines: refs, hlines, dots });
+}
+function drawAll() {
+  if (!res || !dom) return;
+  const ink = css("--ink"), muted = css("--muted"), surface = css("--surface");
+  const c1 = css("--s1"), c2 = css("--s2"), c4 = css("--s4");
+  drawProfile($("cvTheta"), res.TH, dom.th, "Potentielle Temperatur θ (K)", []);
+  drawProfile($("cvWind"), SP, dom.sp, "Windgeschwindigkeit (m/s)", [{ v: Math.hypot(par.ug, par.vg), color: muted, dash: [6, 4], width: 2 }]);
+
+  const t = res.t.subarray(0, res.n), cursor = { v: res.t[ti], color: ink, width: 1.5 };
+  const hov = hoverT != null && hoverT !== ti ? [{ v: res.t[hoverT], color: muted }] : [];
+  const h = hoverT != null ? hoverT : ti;
+  plot($("cvSection"), {
+    x: dom.t, y: dom.z, xLabel: "Zeit (h)", yLabel: "Höhe (m)", timeAxis: true, image: offSection,
+    series: [{ xs: t, ys: res.pbl.subarray(0, res.n), color: ink, width: 1.5, halo: surface }],
+    vlines: [cursor, ...hov], hlines: hoverZ != null ? [{ v: res.z[hoverZ], color: muted }] : []
+  });
+  plot($("cvEnergy"), {
+    x: dom.t, y: dom.energy, xLabel: "Zeit (h)", timeAxis: true, vlines: [cursor, ...hov], hlines: [{ v: 0, color: muted }],
+    series: [
+      { xs: t, ys: res.sol.subarray(0, res.n), color: c4 },
+      { xs: [dom.t[0], dom.t[1]], ys: [par.rlong, par.rlong], color: c1 },
+      { xs: t, ys: res.hf.subarray(0, res.n), color: c2 }],
+    dots: [{ x: res.t[h], y: res.sol[h], color: c4 }, { x: res.t[h], y: par.rlong, color: c1 }, { x: res.t[h], y: res.hf[h], color: c2 }]
+  });
+  const th1 = new Float32Array(res.n);
+  for (let i = 0; i < res.n; i++) th1[i] = res.TH[i * res.nz];
+  plot($("cvTemp"), {
+    x: dom.t, y: dom.temp, xLabel: "Zeit (h)", timeAxis: true, vlines: [cursor, ...hov],
+    series: [{ xs: t, ys: res.tg.subarray(0, res.n), color: c2 }, { xs: t, ys: th1, color: c1 }],
+    dots: [{ x: res.t[h], y: res.tg[h], color: c2 }, { x: res.t[h], y: th1[h], color: c1 }]
+  });
+}
+
+/* ---------- Anzeige des gewählten Zeitpunkts ---------- */
+function updateNow() {
+  const day = res.hf[ti] > 0;
+  $("clock").textContent = clockText(res.t[ti]);
+  $("regime").className = `pill ${day ? "day" : "night"}`;
+  $("regime").textContent = day ? "konvektiv" : "stabil";
+  $("nowPbl").textContent = day ? `${fmtInt(res.pbl[ti])} m` : "–";
+  $("nowTg").textContent = `${fmt(res.tg[ti], 1, true)} K`;
+  $("nowH").textContent = `${fmt(res.hf[ti], 0)} W/m²`;
+  $("fTime").value = String(ti);
+  $("fTime").setAttribute("aria-valuetext", clockText(res.t[ti]));
+}
+function setTime(i) {
+  i = Math.min(res.n - 1, Math.max(0, Math.round(i)));
+  if (i === ti) return;
+  ti = i; updateNow(); requestDraw();
+}
+
+/* ---------- Kennzahlen ---------- */
+function updateStats() {
+  const nz = res.nz, n = res.n, g = Math.hypot(par.ug, par.vg);
+  let iP = 0, iS = 0, tgMin = Infinity, tgMax = -Infinity, iH = 0;
+  for (let i = 0; i < n; i++) {
+    if (res.pbl[i] > res.pbl[iP]) iP = i;
+    if (res.hf[i] > res.hf[iH]) iH = i;
+    tgMin = Math.min(tgMin, res.tg[i]); tgMax = Math.max(tgMax, res.tg[i]);
+  }
+  for (let i = 0; i < n * nz; i++) if (SP[i] > SP[iS]) iS = i;
+  const sMax = SP[iS], over = g > 0 ? (sMax / g - 1) * 100 : NaN;
+  const rows = [
+    ["Höchste Grenzschicht", res.pbl[iP] > 0 ? `${fmtInt(res.pbl[iP])} m um ${clockText(res.t[iP])}` : "keine Konvektion"],
+    ["Stärkster Wind", `${fmt(sMax, 1, true)} m/s in ${fmtInt(res.z[iS % nz])} m um ${clockText(res.t[Math.floor(iS / nz)])}`],
+    ["Gegenüber geostrophisch", Number.isFinite(over) ? `${over >= 0 ? "+" : "−"}${fmt(Math.abs(over), 0)} %` : "–"],
+    ["Bodentemperatur, Minimum / Maximum", `${fmt(tgMin, 1, true)} K / ${fmt(tgMax, 1, true)} K`],
+    ["Größter fühlbarer Wärmestrom", `${fmt(res.hf[iH], 0)} W/m² um ${clockText(res.t[iH])}`]
+  ];
+  $("stats").innerHTML = rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join("");
+  $("headWind").textContent = `geostrophisch ${fmt(g, 1)} m/s`;
+  $("status").innerHTML = `<span><b>${fmtInt(res.steps)}</b> Zeitschritte</span><span><b>${nz}</b> Schichten</span>` +
+    `<span><b>${fmt(lastMs, 1)} ms</b> Rechenzeit</span>`;
+}
+
+/* ---------- Lauf ---------- */
+let lastMs = 0;
+function rebuild() {
+  par = readParams();
+  const frac = res && res.n > 1 ? res.t[ti] : 15;      // erster Aufruf: 15 Uhr, sonst Zeitpunkt halten
+  const t0 = performance.now();
+  res = runModel(par);
+  lastMs = performance.now() - t0;
+  const period = par.f > 0 ? 2 * Math.PI / par.f / 3600 : Infinity;
+  $("forceNote").textContent = Number.isFinite(period) ? `Trägheitsperiode 2π/f = ${fmt(period, 1)} h` : "ohne Corioliskraft";
+  $("gridNote").textContent = `Säule ${fmtInt(par.nz * par.dz)} m · ${fmtInt(res.steps)} Schritte · Ausgabe alle ${fmt(res.dt * res.stride / 60, 1)} min`;
+  const banner = $("banner");
+  banner.hidden = !res.unstable;
+  if (res.unstable) banner.textContent = `Die Lösung ist nach ${clockText(res.t[res.n - 1])} instabil geworden. Kleineren Zeitschritt dt oder eine kleinere Mischrate wählen.`;
+  prepare();
+  ti = 0;
+  for (let i = 0; i < res.n; i++) if (Math.abs(res.t[i] - frac) < Math.abs(res.t[ti] - frac)) ti = i;
+  hoverK = hoverT = hoverZ = null;
+  $("fTime").max = String(res.n - 1);
+  paintSection();
+  updateNow();
+  updateStats();
+  requestDraw();
+}
+
+/* ---------- Bedienung ---------- */
+function placeTooltip(cv, tt, e, html) {
+  tt.innerHTML = html; tt.hidden = false;
+  const r = cv.getBoundingClientRect(), px = e.clientX - r.left, py = e.clientY - r.top;
+  const left = px + 14 + tt.offsetWidth > r.width ? px - 14 - tt.offsetWidth : px + 14;
+  const top = py + 14 + tt.offsetHeight > r.height ? py - 14 - tt.offsetHeight : py + 14;
+  tt.style.left = `${Math.max(0, left)}px`; tt.style.top = `${Math.max(0, top)}px`;
+}
+function dataAt(cv, e) {
+  const g = cv._g;
+  if (!g) return null;
+  const r = cv.getBoundingClientRect(), px = e.clientX - r.left, py = e.clientY - r.top;
+  if (px < g.x0 - 4 || px > g.x1 + 4 || py < g.y1 - 4 || py > g.y0 + 4) return null;
+  return {
+    x: g.o.x[0] + (px - g.x0) / (g.x1 - g.x0) * (g.o.x[1] - g.o.x[0]),
+    y: g.o.y[0] + (py - g.y0) / (g.y1 - g.y0) * (g.o.y[1] - g.o.y[0])
+  };
+}
+const ttRow = (key, label, value) => `<div class="tt-row"><span class="key ${key}"></span><span>${label}</span><b>${value}</b></div>`;
+const layerAt = y => Math.min(res.nz - 1, Math.max(0, Math.floor(y / res.dz)));
+const timeAt = x => Math.min(res.n - 1, Math.max(0, Math.round(x * 3600 / (res.dt * res.stride))));
+
+function bindProfile(cvId, ttId, data, unit, dec) {
+  const cv = $(cvId), tt = $(ttId);
+  const move = e => {
+    const p = dataAt(cv, e);
+    if (!p) { leave(); return; }
+    hoverK = layerAt(p.y);
+    const d = data(), rows = [ttRow("thick", clockText(res.t[ti]), `${fmt(d[ti * res.nz + hoverK], dec, true)} ${unit}`)];
+    for (const g of ghosts()) if (g.i !== ti) rows.push(ttRow(g.key, clockText(res.t[g.i]), `${fmt(d[g.i * res.nz + hoverK], dec, true)} ${unit}`));
+    placeTooltip(cv, tt, e, `<div class="tt-title">Höhe ${fmtInt(res.z[hoverK])} m</div>${rows.join("")}`);
+    requestDraw();
+  };
+  const leave = () => { hoverK = null; tt.hidden = true; requestDraw(); };
+  cv.addEventListener("pointermove", move);
+  cv.addEventListener("pointerdown", move);
+  cv.addEventListener("pointerleave", leave);
+}
+function bindTime(cvId, ttId, html, withHeight) {
+  const cv = $(cvId), tt = $(ttId);
+  const move = e => {
+    const p = dataAt(cv, e);
+    if (!p) { leave(); return; }
+    hoverT = timeAt(p.x);
+    hoverZ = withHeight ? layerAt(p.y) : null;
+    if (e.buttons & 1 || e.type === "pointerdown") setTime(hoverT);
+    placeTooltip(cv, tt, e, html(hoverT, hoverZ));
+    requestDraw();
+  };
+  const leave = () => { hoverT = hoverZ = null; tt.hidden = true; requestDraw(); };
+  cv.addEventListener("pointermove", move);
+  cv.addEventListener("pointerdown", e => { stopPlay(); move(e); });
+  cv.addEventListener("pointerleave", leave);
+}
+
+/* ---------- Abspielen ---------- */
+let playPos = 0, playLast = 0;
+function stopPlay() { playing = false; $("btPlay").textContent = "Abspielen"; }
+function tick(now) {
+  if (!playing) return;
+  const hoursPerSecond = 2;                               // ein Tag in 12 Sekunden
+  playPos += (now - playLast) / 1000 * hoursPerSecond * 3600 / (res.dt * res.stride);
+  playLast = now;
+  if (playPos > res.n - 1) playPos = 0;
+  setTime(playPos);
+  requestAnimationFrame(tick);
+}
+$("btPlay").addEventListener("click", () => {
+  if (playing) { stopPlay(); return; }
+  playing = true; $("btPlay").textContent = "Anhalten";
+  playPos = ti >= res.n - 1 ? 0 : ti; playLast = performance.now();
+  requestAnimationFrame(tick);
+});
+$("fTime").addEventListener("input", () => { stopPlay(); setTime(Number($("fTime").value)); });
+
+for (const [id, v] of [["segTheta", "theta"], ["segWind", "wind"]]) {
+  $(id).addEventListener("click", () => {
+    sectionVar = v;
+    $("segTheta").setAttribute("aria-pressed", String(v === "theta"));
+    $("segWind").setAttribute("aria-pressed", String(v === "wind"));
+    paintSection(); requestDraw();
+  });
+}
+$("fGhosts").addEventListener("change", requestDraw);
+
+let rebuildTimer = 0;
+for (const id of Object.keys(FIELDS)) {
+  setField(id, FIELDS[id].def);
+  $(id).addEventListener("input", () => { clearTimeout(rebuildTimer); rebuildTimer = setTimeout(rebuild, 250); });
+  $(id).addEventListener("change", () => { clearTimeout(rebuildTimer); setField(id, fieldValue(id)); rebuild(); });
+}
+$("btReset").addEventListener("click", () => {
+  for (const id of Object.keys(FIELDS)) setField(id, FIELDS[id].def);
+  stopPlay(); res = null; rebuild();
+});
+
+bindProfile("cvTheta", "ttTheta", () => res.TH, "K", 2);
+bindProfile("cvWind", "ttWind", () => SP, "m/s", 2);
+bindTime("cvSection", "ttSection", (i, k) => {
+  const o = i * res.nz + k;
+  return `<div class="tt-title">${clockText(res.t[i])} · Höhe ${fmtInt(res.z[k])} m</div>` +
+    ttRow("k2", "θ", `${fmt(res.TH[o], 2, true)} K`) + ttRow("k1", "Wind", `${fmt(SP[o], 2, true)} m/s`) +
+    ttRow("thick", "Grenzschicht", res.hf[i] > 0 ? `${fmtInt(res.pbl[i])} m` : "stabil");
+}, true);
+bindTime("cvEnergy", "ttEnergy", i => `<div class="tt-title">${clockText(res.t[i])}</div>` +
+  ttRow("k4", "Einstrahlung S", `${fmt(res.sol[i], 0)} W/m²`) + ttRow("k1", "Abstrahlung L", `${fmt(par.rlong, 0)} W/m²`) +
+  ttRow("k2", "Wärmestrom H", `${fmt(res.hf[i], 0)} W/m²`));
+bindTime("cvTemp", "ttTemp", i => `<div class="tt-title">${clockText(res.t[i])}</div>` +
+  ttRow("k2", "Boden Tg", `${fmt(res.tg[i], 2, true)} K`) + ttRow("k1", "θ unterste Schicht", `${fmt(res.TH[i * res.nz], 2, true)} K`));
+
+// Thema oder Größe geändert: neu zeichnen
+const repaint = () => { if (res) { paintSection(); requestDraw(); } };
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", repaint);
+new MutationObserver(repaint).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+if (window.ResizeObserver) new ResizeObserver(requestDraw).observe(document.querySelector("main"));
+else window.addEventListener("resize", requestDraw);
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(requestDraw);
+
+rebuild();
+</script>
+</body>
+</html>
