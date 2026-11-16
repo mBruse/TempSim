@@ -92,6 +92,9 @@ einstellbar, die Rechnung läuft bei jeder Änderung neu. Gezeigt werden die
 Profile von potentieller Temperatur und Windgeschwindigkeit zum gewählten
 Zeitpunkt (mit Abspielfunktion), ein Zeit-Höhen-Schnitt, die Energiebilanz am
 Boden und Kennzahlen wie Grenzschichthöhe und nächtliches Starkwindband.
+Die Farben des Zeit-Höhen-Schnitts lassen sich über eine Farbdatei (`.jcol`,
+„COLOR Palette JSON“) wählen: Klassenzahl, erste Farbe und Umkehren wie im TrIM
+Tree Viewer.
 
 ## Bauen
 

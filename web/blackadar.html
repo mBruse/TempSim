@@ -149,6 +149,16 @@ input[type="range"] { width: 100%; min-width: 0; accent-color: var(--accent); ma
 .seg button + button { border-left: 1px solid var(--line); }
 .seg button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }
 
+.palbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; color: var(--ink-2); font-size: 13px; }
+.palbar select, .palbar input[type="number"] {
+  background: var(--surface-2); border: 1px solid var(--line); border-radius: 6px; padding: 5px 8px; min-width: 0; max-width: 100%;
+}
+.palbar input[type="number"] { width: 64px; font-family: var(--font-data); }
+.palopts { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.palopts label { display: inline-flex; align-items: center; gap: 6px; }
+.palopts input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--accent); margin: 0; }
+.btn.small { padding: 5px 12px; font-size: 13px; }
+.note.err { color: var(--err); font-family: var(--font-body); }
 .cbar { display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: 10px; align-items: start; max-width: 420px; }
 .cbar-title { font-size: 12px; color: var(--ink-2); line-height: 12px; white-space: nowrap; }
 .cbar-grad { height: 12px; border-radius: 3px; border: 1px solid var(--line); }
@@ -279,6 +289,18 @@ details.info p { margin: 0; }
         </div>
         <div class="chart section"><canvas id="cvSection" role="img" aria-label="Zeit-Höhen-Schnitt"></canvas><div class="tooltip" id="ttSection" hidden></div></div>
         <div class="cbar"><span class="cbar-title" id="cbarTitle"></span><div class="cbar-grad" id="cbarGrad"></div><div class="cbar-ticks" id="cbarTicks"></div></div>
+        <div class="palbar">
+          <label for="fPalette">Palette</label>
+          <select id="fPalette"></select>
+          <button class="btn small" id="btPalette" type="button">Farbdatei öffnen</button>
+          <input type="file" id="filePalette" accept=".jcol,.json,application/json" hidden>
+          <span class="palopts" id="palOpts" hidden>
+            <label>Klassen <input type="number" id="fPalN" min="2" max="64" step="1" value="10"></label>
+            <label>Erste Farbe <input type="number" id="fPalFirst" min="0" step="1" value="0"></label>
+            <label><input type="checkbox" id="fPalInvert"> Umkehren</label>
+          </span>
+        </div>
+        <div class="note" id="palNote" role="status"></div>
         <p class="hint">Die Linie zeigt die Obergrenze der durchmischten Schicht. Klicken oder Ziehen wählt den Zeitpunkt.</p>
       </section>
 
@@ -318,7 +340,7 @@ details.info p { margin: 0; }
             <div class="formula">du/dt = f · (v − v<sub>g</sub>),   dv/dt = −f · (u − u<sub>g</sub>)</div>
             <p>Das Vorzeichen von H schaltet das Regime. Bei H &gt; 0 (konvektiv) steigt Luft aus der untersten Schicht bis dorthin auf, wo sie nicht mehr wärmer als die Umgebung ist. Mit jeder Schicht darunter tauscht die unterste Schicht direkt Wärme und Impuls aus, ohne Umweg über die Nachbarschichten. Das ist der nichtlokale Ansatz nach Blackadar. Bei H ≤ 0 (stabil) bleibt nur schwache Diffusion mit festem Austauschkoeffizienten K zwischen benachbarten Schichten.</p>
             <p>Nach Sonnenuntergang fehlt deshalb oberhalb des Bodens fast jede Reibung. Der Wind, der tagsüber unter dem geostrophischen Wert lag, schwingt mit der Trägheitsperiode 2π/f um ihn herum und überschießt ihn einige Stunden später. So entsteht das nächtliche Starkwindband.</p>
-            <p>Die Rechnung ist ein stark vereinfachtes Lehrbeispiel: konstante Luftdichte, kein Wasserdampf, keine Strahlung in der Luft, feste Mischrate, und im konvektiven Regime wird nur die u-Komponente durchmischt.</p>
+            <p>Die Rechnung ist ein stark vereinfachtes Lehrbeispiel: konstante Luftdichte, kein Wasserdampf, keine Strahlung in der Luft, und eine feste Mischrate.</p>
           </div>
         </details>
       </section>
@@ -394,6 +416,8 @@ function runModel(p) {
         thn[k] += dth; thn[0] -= dth;
         const du = alpha * (un[0] - un[k]);
         un[k] += du; un[0] -= du;
+        const dv = alpha * (vn[0] - vn[k]);
+        vn[k] += dv; vn[0] -= dv;
       }
       top += 1;                                  // Obergrenze der obersten durchmischten Schicht
     } else {
@@ -505,6 +529,74 @@ const RAMPS = {
   wind: ["#e3eefc", "#b7d3f6", "#86b6ef", "#3987e5", "#1c5cab", "#0d366b"].map(hexToRgb)
 };
 function ramp() { const r = RAMPS[sectionVar]; return isDark() ? r.slice().reverse() : r; }
+
+/* ---------- Paletten: Farbdateien .jcol ('COLOR Palette JSON') wie im TrIM Tree Viewer ---------- */
+// Klasse i von n nimmt die Palettenfarbe ErsteFarbe + i (umgekehrt: ErsteFarbe + n-1-i);
+// eine Klasse hinter dem Ende der Palette ist grau.
+const UNDEFINED_RGB = [128, 128, 128];
+const PAL_RAMP = { id: "ramp", name: "Standard (ein Farbton, stufenlos)", colors: null };
+const PAL_BATLOW = { id: "builtin:batlow10", name: "batlow10 (eingebaut)",
+  colors: ["#28A150", "#509950", "#2CC230", "#99E244", "#D2E681", "#FFE291", "#FACE5D", "#CEAA3C", "#D69918", "#DA6D20",
+    "#011959", "#103D5F", "#195662", "#31695B", "#587646", "#848331", "#B78E31", "#E39754", "#FCA78E", "#FDBAC7"].map(hexToRgb) };
+let palettes = [PAL_RAMP, PAL_BATLOW];
+let pal = { p: PAL_RAMP, n: 10, first: 0, invert: false };
+function readJcol(doc, fileName) {
+  if (String((doc && doc.format) || "") !== "COLOR Palette JSON") throw new Error("keine Farbpalette („format“ ist nicht „COLOR Palette JSON“)");
+  // je Eintrag '#RRGGBBAA'; ein Eintrag ohne gültige Farbe behält seinen Platz
+  const colors = (Array.isArray(doc.colors) ? doc.colors : []).map(c => {
+    const h = String((c && c.color) || "").replace("#", "");
+    return /^[0-9a-fA-F]{6}/.test(h) ? hexToRgb("#" + h.slice(0, 6)) : null;
+  });
+  if (!colors.length) throw new Error("die Palette enthält keine Farben");
+  const base = String(fileName).replace(/\.(jcol|json)$/i, ""), n = String(doc.palettename || "").trim();
+  return { id: "opened:" + fileName, name: n && !/[\\/]/.test(n) ? n : base, colors };
+}
+function classColour(i, n) {
+  const idx = (pal.invert ? n - i - 1 : i) + pal.first;
+  return (idx >= 0 && idx < pal.p.colors.length && pal.p.colors[idx]) || UNDEFINED_RGB;
+}
+function savePalettes() {
+  try {
+    localStorage.setItem("blackadar.palette", JSON.stringify({ id: pal.p.id, n: pal.n, first: pal.first, invert: pal.invert,
+      opened: palettes.filter(p => p.id.startsWith("opened:")) }));
+  } catch (e) { /* nur eine Bequemlichkeit */ }
+}
+function loadPalettes() {
+  try {
+    const s = JSON.parse(localStorage.getItem("blackadar.palette") || "{}") || {};
+    for (const p of Array.isArray(s.opened) ? s.opened : [])
+      if (p && typeof p.id === "string" && p.id.startsWith("opened:") && Array.isArray(p.colors) && p.colors.length) palettes.push({ id: p.id, name: String(p.name), colors: p.colors });
+    pal.p = palettes.find(p => p.id === s.id) || PAL_RAMP;
+    if (Number.isFinite(s.n)) pal.n = s.n;
+    if (Number.isFinite(s.first)) pal.first = s.first;
+    pal.invert = s.invert === true;
+  } catch (e) { /* ohne Speicher: Standard */ }
+}
+function renderPalette() {
+  const sel = $("fPalette");
+  sel.innerHTML = "";
+  for (const p of palettes) {
+    const o = document.createElement("option");
+    o.value = p.id; o.textContent = p.colors ? `${p.name} · ${p.colors.length} Farben` : p.name;
+    sel.appendChild(o);
+  }
+  sel.value = pal.p.id;
+  const classed = !!pal.p.colors;
+  $("palOpts").hidden = !classed;
+  if (classed) {
+    pal.n = Math.max(2, Math.min(64, Math.round(pal.n) || 10));
+    pal.first = Math.max(0, Math.min(pal.p.colors.length - 1, Math.round(pal.first) || 0));
+    $("fPalN").value = String(pal.n);
+    $("fPalFirst").max = String(pal.p.colors.length - 1);
+    $("fPalFirst").value = String(pal.first);
+    $("fPalInvert").checked = pal.invert;
+  }
+}
+function usePalette(change) {
+  Object.assign(pal, change);
+  renderPalette(); savePalettes();
+  if (res) { paintSection(); requestDraw(); }
+}
 
 /* ---------- Diagramm-Grundgerüst ---------- */
 function niceStep(span, maxTicks) {
@@ -622,15 +714,24 @@ function paintSection() {
   const [a, b] = sectionVar === "theta" ? dom.thRaw : dom.spRaw, span = Math.max(b - a, 1e-9);
   offSection.width = n; offSection.height = nz;
   const ctx = offSection.getContext("2d"), img = ctx.createImageData(n, nz), d = img.data, stops = ramp();
-  const table = new Uint8Array(256 * 3);
-  for (let i = 0; i < 256; i++) table.set(rampRgb(stops, i / 255), i * 3);
+  const table = new Uint8Array(256 * 3), classed = !!pal.p.colors, nc = pal.n;
+  const classes = classed ? Array.from({ length: nc }, (_, i) => classColour(i, nc)) : null;
+  for (let i = 0; i < 256; i++) table.set(classed ? classes[Math.min(nc - 1, Math.floor(i / 255 * nc))] : rampRgb(stops, i / 255), i * 3);
   for (let i = 0; i < n; i++) for (let k = 0; k < nz; k++) {
     const c = Math.round(255 * Math.min(1, Math.max(0, (data[i * nz + k] - a) / span))) * 3, o = ((nz - 1 - k) * n + i) * 4;
     d[o] = table[c]; d[o + 1] = table[c + 1]; d[o + 2] = table[c + 2]; d[o + 3] = 255;
   }
   ctx.putImageData(img, 0, 0);
   const rgb = c => `rgb(${c[0]},${c[1]},${c[2]})`;
-  $("cbarGrad").style.background = `linear-gradient(to right, ${stops.map((c, i) => `${rgb(c)} ${(100 * i / (stops.length - 1)).toFixed(1)}%`).join(", ")})`;
+  $("cbarGrad").style.background = classed
+    ? `linear-gradient(to right, ${classes.map((c, i) => `${rgb(c)} ${(100 * i / nc).toFixed(2)}% ${(100 * (i + 1) / nc).toFixed(2)}%`).join(", ")})`
+    : `linear-gradient(to right, ${stops.map((c, i) => `${rgb(c)} ${(100 * i / (stops.length - 1)).toFixed(1)}%`).join(", ")})`;
+  if (!$("palNote").classList.contains("err")) {
+    const have = classed ? pal.p.colors.length - pal.first : nc;
+    $("palNote").textContent = !classed ? "" : have < nc
+      ? `${nc} Klassen von je ${fmt(span / nc, 2)} ${sectionVar === "theta" ? "K" : "m/s"} · ${nc - have} davon grau: die Palette hat ab der ersten Farbe nur ${have} Farben.`
+      : `${nc} Klassen von je ${fmt(span / nc, 2)} ${sectionVar === "theta" ? "K" : "m/s"}`;
+  }
   $("cbarTitle").textContent = sectionVar === "theta" ? "θ (K)" : "Wind (m/s)";
   const el = $("cbarTicks");
   el.innerHTML = "";
@@ -847,6 +948,26 @@ for (const [id, v] of [["segTheta", "theta"], ["segWind", "wind"]]) {
 }
 $("fGhosts").addEventListener("change", requestDraw);
 
+const palError = msg => { $("palNote").classList.toggle("err", !!msg); if (msg) $("palNote").textContent = msg; };
+$("fPalette").addEventListener("change", e => { palError(""); usePalette({ p: palettes.find(p => p.id === e.target.value) || PAL_RAMP }); });
+$("fPalN").addEventListener("change", e => usePalette({ n: Number(e.target.value) }));
+$("fPalFirst").addEventListener("change", e => usePalette({ first: Number(e.target.value) }));
+$("fPalInvert").addEventListener("change", e => usePalette({ invert: e.target.checked }));
+$("btPalette").addEventListener("click", () => $("filePalette").click());
+$("filePalette").addEventListener("change", async e => {
+  const file = e.target.files[0];
+  e.target.value = "";
+  if (!file) return;
+  try {
+    let doc;
+    try { doc = JSON.parse(await file.text()); } catch (err) { throw new Error("die Datei ist kein JSON"); }
+    const p = readJcol(doc, file.name);
+    palettes = palettes.filter(q => q.id !== p.id).concat(p);
+    palError("");
+    usePalette({ p, first: 0 });
+  } catch (err) { palError(`${file.name} wurde nicht geladen: ${err.message}.`); }
+});
+
 let rebuildTimer = 0;
 for (const id of Object.keys(FIELDS)) {
   setField(id, FIELDS[id].def);
@@ -880,6 +1001,8 @@ if (window.ResizeObserver) new ResizeObserver(requestDraw).observe(document.quer
 else window.addEventListener("resize", requestDraw);
 if (document.fonts && document.fonts.ready) document.fonts.ready.then(requestDraw);
 
+loadPalettes();
+renderPalette();
 rebuild();
 </script>
 </body>
